@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Upload, MoreHorizontal, Trash2, Pencil, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,8 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, limit, startAfter, endBefore, limitToLast, DocumentData, Query } from "firebase/firestore";
 
 const PAGE_SIZE = 10;
 
@@ -28,90 +26,218 @@ export default function ProductsPage() {
   const [productToEdit, setProductToEdit] = useState<Product | undefined>(undefined);
   const { toast } = useToast();
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  
-  const firestore = useFirestore();
-  const { user, isUserLoading: isAuthLoading } = useUser();
-  
-  const [pagination, setPagination] = useState<{
-    cursors: (DocumentData | null)[],
-    page: number
-  }>({ cursors: [null], page: 0 });
-  const [direction, setDirection] = useState<'next' | 'prev' | 'none'>('none');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const productsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    
-    let q: Query<DocumentData>;
-    const baseQuery = collection(firestore, 'products');
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/products');
+        if (!res.ok) throw new Error('Failed to fetch products');
+        const data = await res.json();
+        // Map Prisma Product to frontend Product type
+        const mappedProducts: Product[] = data.map((p: any) => ({
+          id: p.id,
+          productName: p.name,
+          category: p.description || 'Uncategorized',
+          hsnCode: p.sku || '',
+        }));
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load products',
+          description: 'Could not fetch products from the server.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    if (direction === 'next') {
-        q = query(baseQuery, startAfter(pagination.cursors[pagination.page]), limit(PAGE_SIZE));
-    } else if (direction === 'prev') {
-        q = query(baseQuery, endBefore(pagination.cursors[pagination.page]), limitToLast(PAGE_SIZE));
-    } else {
-        q = query(baseQuery, limit(PAGE_SIZE));
-    }
-    return q;
-  }, [firestore, user, pagination.page, direction]);
-
-  const { data: products, isLoading: isProductsLoading } = useCollection<Product>(productsQuery);
-
-  const isLoading = isAuthLoading || isProductsLoading;
+    fetchProducts();
+  }, [toast]);
 
   const handleNext = () => {
-    if (!products || products.length < PAGE_SIZE) return;
-    const nextCursor = products[products.length - 1]._raw || null;
-    setPagination(prev => ({
-        cursors: [...prev.cursors.slice(0, prev.page + 1), nextCursor],
-        page: prev.page + 1
-    }));
-    setDirection('next');
+    if (products.length < (currentPage + 1) * PAGE_SIZE) return;
+    setCurrentPage(prev => prev + 1);
   };
 
   const handlePrev = () => {
-      if (pagination.page === 0) return;
-      setPagination(prev => ({
-          cursors: prev.cursors,
-          page: prev.page - 1
-      }));
-      setDirection('prev');
+    if (currentPage === 0) return;
+    setCurrentPage(prev => prev - 1);
   };
 
   const handleAddProduct = async (newProduct: Omit<Product, 'id'>) => {
-    // This is a placeholder for a secure backend call.
-    console.log("Calling backend to add product:", newProduct);
-    toast({
-        title: 'Product Add Queued',
-        description: `Product "${newProduct.productName}" will be added shortly.`,
-    });
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: newProduct.productName,
+          name: newProduct.productName,
+          sku: newProduct.hsnCode,
+          description: newProduct.category,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to add product');
+      }
+
+      const saved = await res.json();
+      const mapped: Product = {
+        id: saved.id,
+        productName: saved.name,
+        category: saved.description || 'Uncategorized',
+        hsnCode: saved.sku || '',
+      };
+
+      setProducts([mapped, ...products]);
+      toast({
+        title: 'Product Added',
+        description: `Product "${newProduct.productName}" has been successfully added.`,
+      });
+      setAddDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to add product:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to add product',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      });
+    }
   };
   
   const handleEditProduct = async (updatedProduct: Product) => {
-    // This is a placeholder for a secure backend call.
-    console.log("Calling backend to update product:", updatedProduct);
-    setProductToEdit(undefined);
-    toast({
-        title: 'Product Update Queued',
-        description: `Product "${updatedProduct.productName}" will be updated shortly.`,
-    });
+    try {
+      const res = await fetch(`/api/products/${updatedProduct.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: updatedProduct.productName,
+          name: updatedProduct.productName,
+          sku: updatedProduct.hsnCode,
+          description: updatedProduct.category,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to update product');
+      }
+
+      const saved = await res.json();
+      const mapped: Product = {
+        id: saved.id,
+        productName: saved.name,
+        category: saved.description || 'Uncategorized',
+        hsnCode: saved.sku || '',
+      };
+
+      setProducts(products.map(p => p.id === mapped.id ? mapped : p));
+      setProductToEdit(undefined);
+      toast({
+        title: 'Product Updated',
+        description: `Product "${updatedProduct.productName}" has been successfully updated.`,
+      });
+      setAddDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to update product:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to update product',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      });
+    }
   };
   
-  const handleDeleteProduct = (productId: string) => {
-    // This is a placeholder for a secure backend call.
-    console.log("Calling backend to delete product:", productId);
-    toast({
-      title: 'Product Deletion Queued',
-      description: 'The product will be removed shortly.',
-    });
+  const handleDeleteProduct = async (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    const productName = product?.productName || 'Product';
+
+    if (!confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to delete product');
+      }
+
+      setProducts(products.filter(p => p.id !== productId));
+      toast({
+        title: 'Product Deleted',
+        description: `Product "${productName}" has been successfully removed.`,
+      });
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to delete product',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      });
+    }
   };
 
-  const handleImportProducts = (importedProducts: Omit<Product, 'id'>[]) => {
-     // This is a placeholder for a secure backend call.
-     console.log("Calling backend to import products:", importedProducts);
-     toast({
-        title: 'Import Queued',
-        description: `${importedProducts.length} products are being imported.`,
-     });
+  const handleImportProducts = async (importedProducts: Omit<Product, 'id'>[]) => {
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const product of importedProducts) {
+        try {
+          const res = await fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productName: product.productName,
+              name: product.productName,
+              sku: product.hsnCode,
+              description: product.category,
+            }),
+          });
+
+          if (res.ok) {
+            const saved = await res.json();
+            const mapped: Product = {
+              id: saved.id,
+              productName: saved.name,
+              category: saved.description || 'Uncategorized',
+              hsnCode: saved.sku || '',
+            };
+            setProducts(prev => [mapped, ...prev]);
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      toast({
+        title: 'Import Completed',
+        description: `${successCount} products imported successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`,
+      });
+      setImportDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to import products:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to import products',
+        description: 'An unexpected error occurred during import.',
+      });
+    }
   };
   
   const openEditDialog = (product: Product) => {
@@ -204,7 +330,7 @@ export default function ProductsPage() {
              <Table>
               <TableHeader>
                 <TableRow>
-                   <TableHead padding="checkbox" className="w-[50px]">
+                   <TableHead className="w-[50px]">
                     <Checkbox
                       checked={isAllSelected || (isSomeSelected && 'indeterminate')}
                       onCheckedChange={(checked) => handleSelectAll(!!checked)}
@@ -218,12 +344,12 @@ export default function ProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
+                {products.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE).map((product) => (
                   <TableRow 
                     key={product.id}
                     data-state={selectedProducts.includes(product.id) && "selected"}
                   >
-                     <TableCell padding="checkbox">
+                     <TableCell>
                       <Checkbox
                         checked={selectedProducts.includes(product.id)}
                         onCheckedChange={(checked) => handleSelectProduct(product.id, checked)}
@@ -272,7 +398,7 @@ export default function ProductsPage() {
                     variant="outline"
                     size="sm"
                     onClick={handleNext}
-                    disabled={!products || products.length < PAGE_SIZE}
+                    disabled={products.length < (currentPage + 1) * PAGE_SIZE}
                 >
                     Next
                     <ChevronRight className="ml-2 h-4 w-4" />

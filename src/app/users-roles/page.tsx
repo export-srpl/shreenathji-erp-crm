@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, MoreHorizontal } from "lucide-react";
@@ -18,60 +18,126 @@ import { AddUserDialog } from '@/components/users/add-user-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-const initialUsers: User[] = [
-    { id: 'user-1', name: 'Admin', email: 'admin@shreenathji.com', role: 'Admin', status: 'Active', avatarUrl: 'https://placehold.co/40x40/orange/white?text=A', moduleAccess: { Sales: true, Purchase: true, Production: true, QC: true, Logistics: true, Finance: true } },
-    { id: 'user-2', name: 'Ashok Lakhani', email: 'ashok.l@shreenathji.com', role: 'Sales', status: 'Active', avatarUrl: 'https://placehold.co/40x40/green/white?text=AL', moduleAccess: { Sales: true, Purchase: false, Production: false, QC: false, Logistics: false, Finance: false } },
-    { id: 'user-3', name: 'Prakash Gajjar', email: 'prakash.g@shreenathji.com', role: 'Purchase', status: 'Active', avatarUrl: 'https://placehold.co/40x40/blue/white?text=PG', moduleAccess: { Sales: false, Purchase: true, Production: false, QC: false, Logistics: false, Finance: false } },
-    { id: 'user-4', name: 'John Doe', email: 'john.doe@shreenathji.com', role: 'Production', status: 'Inactive', avatarUrl: 'https://placehold.co/40x40/red/white?text=JD', moduleAccess: { Sales: false, Purchase: false, Production: true, QC: false, Logistics: false, Finance: false } },
-    { id: 'user-5', name: 'Jay Lakhani', email: 'jay@shreenathjirasayan.com', role: 'Admin', status: 'Active', avatarUrl: 'https://placehold.co/40x40/purple/white?text=JL', moduleAccess: { Sales: true, Purchase: true, Production: true, QC: true, Logistics: true, Finance: true } },
-    { id: 'user-6', name: 'Rajeev Sharma', email: 'rajeev.s@shreenathjirasayan.com', role: 'Customer', status: 'Active', avatarUrl: 'https://placehold.co/40x40/teal/white?text=RS', moduleAccess: { Sales: false, Purchase: false, Production: false, QC: false, Logistics: false, Finance: false } },
-];
-
 export default function UsersRolesPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUserDialogOpen, setUserDialogOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<User | undefined>(undefined);
   const { toast } = useToast();
+
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/users');
+        if (!res.ok) throw new Error('Failed to fetch users');
+        const data = await res.json();
+        setUsers(data);
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load users',
+          description: 'Could not fetch users from the server.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [toast]);
   
-  const handleSaveUser = (user: User | Omit<User, 'id' | 'avatarUrl' | 'status'>) => {
-    // This is a placeholder for a secure backend call.
-    // This function will handle both creating a new user and updating an existing one.
-    // It should perform validation and check for permissions on the backend.
-    
-    if ('id' in user) {
-       console.log('Calling backend to update user:', user);
-       toast({
-        title: 'User Updated',
-        description: `User "${user.name}" has been successfully updated.`,
+  const handleSaveUser = async (user: User | Omit<User, 'id' | 'avatarUrl' | 'status'>) => {
+    try {
+      const isEdit = 'id' in user;
+      const url = isEdit ? `/api/users/${user.id}` : '/api/users';
+      const method = isEdit ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          // Password only for new users or if explicitly provided
+          ...(isEdit ? {} : { password: 'TempPassword123!' }), // Default password for new users
+        }),
       });
-    } else {
-      console.log('Calling backend to create user:', user);
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to save user');
+      }
+
+      const savedUser = await res.json();
+
+      if (isEdit) {
+        setUsers(users.map((u) => (u.id === savedUser.id ? savedUser : u)));
+        toast({
+          title: 'User Updated',
+          description: `User "${savedUser.name}" has been successfully updated.`,
+        });
+      } else {
+        setUsers([...users, savedUser]);
+        toast({
+          title: 'User Added',
+          description: `User "${savedUser.name}" has been successfully added.`,
+        });
+      }
+
+      setUserDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to save user:', error);
       toast({
-        title: 'User Added',
-        description: `User "${user.name}" has been successfully added.`,
+        variant: 'destructive',
+        title: isEdit ? 'Failed to update user' : 'Failed to add user',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
       });
     }
-     // Note: The UI will update automatically from the Firestore listener,
-     // so we don't need to manually update the state here.
   };
   
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     const userName = users.find(u => u.id === userId)?.name || 'User';
-    // This is a placeholder for a secure backend call.
-    console.log('Calling backend to delete user:', userId);
-    toast({
+    
+    if (!confirm(`Are you sure you want to delete "${userName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to delete user');
+      }
+
+      setUsers(users.filter((u) => u.id !== userId));
+      toast({
         title: 'User Deleted',
         description: `User "${userName}" has been successfully removed.`,
-    });
+      });
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to delete user',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      });
+    }
   };
   
   const handleToggleStatus = (userId: string, newStatus: boolean) => {
-    // This is a placeholder for a secure backend call.
+    // Status toggle is not yet implemented in the database schema
+    // This is a placeholder for future implementation
     const status = newStatus ? 'Active' : 'Inactive';
-    console.log(`Calling backend to update status for user ${userId} to ${status}`);
     toast({
-        title: 'Status Updated',
-        description: `User status has been changed to ${status}.`
+      title: 'Status Update',
+      description: `Status toggle is not yet implemented. User status would be changed to ${status}.`,
     });
   };
 
@@ -103,17 +169,26 @@ export default function UsersRolesPage() {
           <CardDescription>Add, edit, or remove users and manage their roles.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role / Department</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
+          {isLoading ? (
+            <div className="text-center text-muted-foreground py-12">
+              <p>Loading users...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center text-muted-foreground py-12">
+              <p>No users found. Add your first user to get started.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Role / Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -164,9 +239,10 @@ export default function UsersRolesPage() {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
       
