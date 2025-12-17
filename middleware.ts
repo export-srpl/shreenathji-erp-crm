@@ -23,7 +23,9 @@ function isPublicPath(pathname: string) {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const sessionCookie = req.cookies.get('app_session');
-  const isLoggedIn = !!sessionCookie?.value;
+  // Treat the user as logged in ONLY if the cookie explicitly has the value we set on login.
+  // This avoids accidental truthy cookies from other sources/domains.
+  const isLoggedIn = sessionCookie?.value === 'valid';
 
   // Allow static assets, login/reset pages, and auth APIs
   if (isPublicPath(pathname)) {
