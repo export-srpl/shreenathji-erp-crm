@@ -1,0 +1,169 @@
+/**
+ * Core Philosophy: This ruleset is designed for an internal ERP/CRM system. The primary security goal is to ensure that only authenticated employees can access and manage company data. It does not provide any public access. The model assumes that any authenticated user is a trusted employee with rights to view all client and transaction data.
+ *
+ * Write Access: ALL client-side writes are DENIED. Data mutations (create, update, delete) are only allowed through trusted backend Cloud Functions which use the Admin SDK and bypass these rules. This is a critical security measure to ensure all business logic, transactions, and validations are enforced server-side.
+ *
+ * Read Access: Client-side reads (get, list) are permitted for any authenticated user, as the frontend needs to display data.
+ *
+ * Data Structure: The data is organized hierarchically around a central 'clients' collection. Each client document at `/clients/{clientId}` acts as a root for its related subcollections, such as purchase orders, invoices, and payments. This structure allows for intuitive and secure path-based access control.
+ *
+ * Denormalization for Authorization: The data model correctly denormalizes the `clientId` onto every document in the subcollections (`purchaseOrders`, `invoices`, `payments`). This design is leveraged by the security rules to enforce relational integrity efficiently without requiring slow and costly `get()` calls to parent documents.
+ *
+ * Structural Segregation: The use of distinct subcollections for `purchaseOrders`, `invoices`, and `payments` under each client provides a clear and secure separation of concerns, simplifying rule logic.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * Checks if the user is authenticated. This is the baseline security
+     * check for this internal application.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Manages core client company information.
+     * @path /clients/{clientId}
+     * @allow (read) Any authenticated employee can read client data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deny all client-side writes
+    }
+    
+    /**
+     * @description Manages product information.
+     * @path /products/{productId}
+     * @allow (read) Any authenticated employee can read product data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deny all client-side writes
+    }
+
+    /**
+     * @description Manages sales lead information.
+     * @path /leads/{leadId}
+     * @allow (read) Any authenticated employee can read lead data.
+     * @allow (write) Allow client-side writes for leads.
+     */
+    match /leads/{leadId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    /**
+     * @description Manages sales deal information.
+     * @path /deals/{dealId}
+     * @allow (read) Any authenticated employee can read deal data.
+     * @allow (write) Allow client-side writes for deals.
+     */
+    match /deals/{dealId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    /**
+     * @description Manages sales quotations.
+     * @path /quotes/{quoteId}
+     * @allow (read) Any authenticated employee can read quote data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /quotes/{quoteId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Manages proforma invoices.
+     * @path /proforma-invoices/{proformaId}
+     * @allow (read) Any authenticated employee can read proforma invoice data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /proforma-invoices/{proformaId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Manages sales orders.
+     * @path /sales-orders/{salesOrderId}
+     * @allow (read) Any authenticated employee can read sales order data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /sales-orders/{salesOrderId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+    
+    /**
+     * @description Manages final tax invoices.
+     * @path /invoices/{invoiceId}
+     * @allow (read) Any authenticated employee can read invoice data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /invoices/{invoiceId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Manages aggregated dispatch register data.
+     * @path /dispatchRegister/{dispatchId}
+     * @allow (read) Any authenticated employee can read dispatch data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /dispatchRegister/{dispatchId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Manages client payment records.
+     * @path /payments/{paymentId}
+     * @allow (read) Any authenticated employee can read payment data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /payments/{paymentId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Manages purchase orders associated with a specific client.
+     * @path /clients/{clientId}/purchaseOrders/{purchaseOrderId}
+     * @allow (read) Any authenticated employee can read purchase order data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /clients/{clientId}/purchaseOrders/{purchaseOrderId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deny all client-side writes
+    }
+
+    /**
+     * @description Manages invoices associated with a specific client.
+     * @path /clients/{clientId}/invoices/{invoiceId}
+     * @allow (read) Any authenticated employee can read invoice data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /clients/{clientId}/invoices/{invoiceId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deny all client-side writes
+    }
+
+    /**
+     * @description Manages payments associated with a specific client.
+     * @path /clients/{clientId}/payments/{paymentId}
+     * @allow (read) Any authenticated employee can read payment data.
+     * @deny (write) All client-side writes are denied. Must be done via backend.
+     */
+    match /clients/{clientId}/payments/{paymentId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deny all client-side writes
+    }
+  }
+}

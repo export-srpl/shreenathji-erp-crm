@@ -1,0 +1,513 @@
+{
+  "entities": {
+    "Client": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a client (customer) of Shreenathji Rasayan Pvt. Ltd.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Client entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the client."
+        },
+        "gstTaxId": {
+          "type": "string",
+          "description": "Goods and Services Tax Identification Number (GSTIN)."
+        },
+        "iec": {
+          "type": "string",
+          "description": "Import Export Code (IEC) for export/import operations."
+        },
+        "creditLimit": {
+          "type": "number",
+          "description": "The maximum credit amount allowed for the client."
+        },
+        "outstandingBalance": {
+          "type": "number",
+          "description": "The current outstanding balance owed by the client."
+        },
+        "contactName": {
+          "type": "string",
+          "description": "Name of the primary contact person at the client's organization."
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Email address of the primary contact person.",
+          "format": "email"
+        },
+        "contactPhone": {
+          "type": "string",
+          "description": "Phone number of the primary contact person."
+        },
+        "address": {
+          "type": "string",
+          "description": "The client's physical address."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "PurchaseOrder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrder",
+      "type": "object",
+      "description": "Represents a purchase order placed by a client.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Purchase Order entity."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N PurchaseOrder)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date when the purchase order was placed.",
+          "format": "date-time"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the purchase order."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the purchase order (e.g., Confirmed, In Production, Shipped, Delivered)."
+        },
+        "poNumber": {
+          "type": "string",
+          "description": "The purchase order number."
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "orderDate",
+        "totalAmount",
+        "status"
+      ]
+    },
+    "Invoice": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Invoice",
+      "type": "object",
+      "description": "Represents an invoice issued to a client.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Invoice entity."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N Invoice)"
+        },
+        "purchaseOrderId": {
+          "type": "string",
+          "description": "Reference to PurchaseOrder. (Relationship: PurchaseOrder 1:N Invoice)"
+        },
+        "invoiceDate": {
+          "type": "string",
+          "description": "Date when the invoice was issued.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the invoice."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Date when the invoice is due for payment.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the invoice (e.g., Pending, Paid, Overdue)."
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "description": "The invoice number."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity invoiced."
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "purchaseOrderId",
+        "invoiceDate",
+        "amount",
+        "dueDate",
+        "status"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a payment made by a client.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Payment entity."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N Payment)"
+        },
+        "invoiceId": {
+          "type": "string",
+          "description": "Reference to Invoice. (Relationship: Invoice 1:N Payment)"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "Date when the payment was made.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the payment."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Method of payment (e.g., Bank Transfer, Credit Card)."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Transaction identifier."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the payment (e.g. Pending, Cleared)."
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "invoiceId",
+        "paymentDate",
+        "amount",
+        "paymentMethod"
+      ]
+    },
+    "Product": {
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product in the inventory.",
+      "properties": {
+        "productName": {
+          "type": "string",
+          "description": "The name of the product."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the product."
+        },
+        "hsnCode": {
+          "type": "string",
+          "description": "The Harmonized System of Nomenclature (HSN) code for the product."
+        }
+      },
+      "required": [
+        "productName",
+        "category",
+        "hsnCode"
+      ]
+    },
+    "Lead": {
+      "title": "Lead",
+      "type": "object",
+      "description": "Represents a potential sales lead.",
+      "properties": {
+        "companyName": {
+          "type": "string"
+        },
+        "contactName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "New",
+            "Contacted",
+            "Qualified",
+            "Disqualified",
+            "Converted"
+          ]
+        },
+        "leadSource": {
+          "type": "string"
+        },
+        "assignedSalesperson": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "companyName",
+        "contactName",
+        "email",
+        "status",
+        "assignedSalesperson"
+      ]
+    },
+    "DispatchRegisterEntry": {
+      "title": "DispatchRegisterEntry",
+      "type": "object",
+      "description": "Represents an aggregated entry for the dispatch register.",
+      "properties": {
+        "productName": {
+          "type": "string"
+        },
+        "orderQty": {
+          "type": "number"
+        },
+        "dispatchedQty": {
+          "type": "number"
+        },
+        "wipQty": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "productName",
+        "orderQty",
+        "dispatchedQty",
+        "wipQty"
+      ]
+    },
+    "Deal": {
+      "title": "Deal",
+      "type": "object",
+      "description": "Represents a sales deal or opportunity.",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "company": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "Prospecting",
+            "Technical Discussion",
+            "Quotation",
+            "Negotiation",
+            "Won",
+            "Lost"
+          ]
+        },
+        "customerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "company",
+        "value",
+        "stage",
+        "customerId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/clients/{clientId}",
+        "definition": {
+          "entityName": "Client",
+          "schema": {
+            "$ref": "#/backend/entities/Client"
+          },
+          "description": "Stores client information. Includes fields like name, GST/Tax ID, credit limit, and contact details.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "Unique identifier for the client."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product information.",
+          "params": [
+            {
+              "name": "productId",
+              "description": "Unique identifier for the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leads/{leadId}",
+        "definition": {
+          "entityName": "Lead",
+          "schema": {
+            "$ref": "#/backend/entities/Lead"
+          },
+          "description": "Stores sales lead information."
+        }
+      },
+      {
+        "path": "/deals/{dealId}",
+        "definition": {
+          "entityName": "Deal",
+          "schema": {
+            "$ref": "#/backend/entities/Deal"
+          },
+          "description": "Stores sales deal or opportunity information."
+        }
+      },
+      {
+        "path": "/quotes/{quoteId}",
+        "definition": {
+          "entityName": "Quote",
+          "schema": {
+            "$ref": "#/backend/entities/SalesDocument"
+          },
+          "description": "Stores sales quotations."
+        }
+      },
+      {
+        "path": "/proforma-invoices/{proformaId}",
+        "definition": {
+          "entityName": "ProformaInvoice",
+          "schema": {
+            "$ref": "#/backend/entities/SalesDocument"
+          },
+          "description": "Stores proforma invoices."
+        }
+      },
+      {
+        "path": "/sales-orders/{salesOrderId}",
+        "definition": {
+          "entityName": "SalesOrder",
+          "schema": {
+            "$ref": "#/backend/entities/SalesOrder"
+          },
+          "description": "Stores sales orders confirmed by clients."
+        }
+      },
+      {
+        "path": "/invoices/{invoiceId}",
+        "definition": {
+          "entityName": "Invoice",
+          "schema": {
+            "$ref": "#/backend/entities/Invoice"
+          },
+          "description": "Stores final tax invoices."
+        }
+      },
+      {
+        "path": "/dispatchRegister/{dispatchId}",
+        "definition": {
+          "entityName": "DispatchRegisterEntry",
+          "schema": {
+            "$ref": "#/backend/entities/DispatchRegisterEntry"
+          },
+          "description": "Stores aggregated dispatch data for products."
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Stores payment records made by clients."
+        }
+      },
+      {
+        "path": "/clients/{clientId}/purchaseOrders/{purchaseOrderId}",
+        "definition": {
+          "entityName": "PurchaseOrder",
+          "schema": {
+            "$ref": "#/backend/entities/PurchaseOrder"
+          },
+          "description": "Stores purchase orders placed by a client. Includes the denormalized 'clientId' for authorization independence.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "Unique identifier for the client."
+            },
+            {
+              "name": "purchaseOrderId",
+              "description": "Unique identifier for the purchase order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/clients/{clientId}/invoices/{invoiceId}",
+        "definition": {
+          "entityName": "Invoice",
+          "schema": {
+            "$ref": "#/backend/entities/Invoice"
+          },
+          "description": "Stores invoices issued to a client. Includes the denormalized 'clientId' for authorization independence.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "Unique identifier for the client."
+            },
+            {
+              "name": "invoiceId",
+              "description": "Unique identifier for the invoice."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/clients/{clientId}/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Stores payments made by a client. Includes the denormalized 'clientId' for authorization independence.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "Unique identifier for the client."
+            },
+            {
+              "name": "paymentId",
+              "description": "Unique identifier for the payment."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to support Shreenathji Rasayan Pvt. Ltd.'s ERP + CRM system, focusing on sales and order management, real-time quantity ledgers, and client credit control. The structure prioritizes authorization independence by denormalizing relevant data, enabling secure and scalable operations.\n\n**Authorization Independence and Denormalization:**\n\n*   **Clients:** The `/clients/{clientId}` collection stores client information. Subcollections like `/clients/{clientId}/purchaseOrders` and `/clients/{clientId}/invoices` denormalize the `clientId` to ensure authorization rules within these subcollections can be enforced without needing to perform `get()` operations on the parent `client` document. This is crucial for maintaining atomic operations and simplifying security rules.\n\n**Structural Segregation:**\n\n*   Different data types with potentially different access control requirements are stored in separate collections or subcollections. For example, client data is stored in `/clients/{clientId}`, while purchase orders are stored in `/clients/{clientId}/purchaseOrders/{purchaseOrderId}`.\n\n**Access Modeling:**\n\n*   **Ownership:** Subcollections under `/clients/{clientId}` imply ownership. Only the system (via Cloud Functions) can create or modify documents within these subcollections.\n*   **No Membership maps are needed** because all data in the subcollections belong to the client.\n\n**QAPs (Rules are not Filters):**\n\n*   The structure supports secure `list` operations by ensuring that all documents within a collection share the same security posture. For example, listing invoices under a specific client (`/clients/{clientId}/invoices`) is secure because the security rules can easily verify that the requesting user has access to the client's data."
+  }
+}
