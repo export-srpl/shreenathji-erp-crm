@@ -40,7 +40,28 @@ export default function CustomersPage() {
           throw new Error('Failed to fetch customers');
         }
         const data = await res.json();
-        setCustomers(data);
+
+        // Normalise API shape (flat fields) into the Customer type used by the UI.
+        const normalised: Customer[] = (data as any[]).map((c) => ({
+          id: c.id,
+          leadId: c.leadId ?? undefined,
+          customerType: (c.customerType as Customer['customerType']) ?? 'domestic',
+          companyName: c.companyName ?? '',
+          billingAddress: c.billingAddress ?? '',
+          shippingAddress: c.shippingAddress ?? '',
+          country: c.country ?? '',
+          state: c.state ?? undefined,
+          cityState: c.cityState ?? undefined,
+          gstNo: c.gstNo ?? undefined,
+          contactPerson: {
+            name: c.contactName ?? '',
+            email: c.contactEmail ?? '',
+            designation: c.contactTitle ?? '',
+            phone: c.contactPhone ?? '',
+          },
+        }));
+
+        setCustomers(normalised);
       } catch (error) {
         console.error(error);
         toast({
@@ -178,18 +199,34 @@ export default function CustomersPage() {
                 {pagedCustomers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.companyName}</TableCell>
-                    <TableCell>{customer.customerType === 'domestic' ? customer.state : customer.cityState}, {customer.country}</TableCell>
-                    <TableCell>{customer.contactPerson.name}</TableCell>
+                  <TableCell>
+                    {customer.customerType === 'domestic'
+                      ? customer.state || customer.country
+                      : customer.cityState || customer.country}
+                  </TableCell>
+                  <TableCell>{customer.contactPerson?.name || '-'}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-2">
-                        <a href={`mailto:${customer.contactPerson.email}`} className="flex items-center gap-2 text-sm hover:underline">
+                        {customer.contactPerson?.email && (
+                          <a
+                            href={`mailto:${customer.contactPerson.email}`}
+                            className="flex items-center gap-2 text-sm hover:underline"
+                          >
                           <Mail className="h-4 w-4 text-muted-foreground" />
                           <span>{customer.contactPerson.email}</span>
-                        </a>
-                        <a href={`https://wa.me/${customer.contactPerson.phone}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm hover:underline">
-                          <WhatsAppIcon />
-                          <span>{customer.contactPerson.phone}</span>
-                        </a>
+                          </a>
+                        )}
+                        {customer.contactPerson?.phone && (
+                          <a
+                            href={`https://wa.me/${customer.contactPerson.phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm hover:underline"
+                          >
+                            <WhatsAppIcon />
+                            <span>{customer.contactPerson.phone}</span>
+                          </a>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
