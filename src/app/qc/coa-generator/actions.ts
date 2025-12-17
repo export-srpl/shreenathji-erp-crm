@@ -26,6 +26,13 @@ export async function generateCoaAction(
   prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('GEMINI_API_KEY is not configured; cannot generate COA.');
+    return {
+      message: 'AI is not configured on the server. Please contact your administrator to set GEMINI_API_KEY.',
+    };
+  }
+
   const validatedFields = formSchema.safeParse({
     productName: formData.get('productName'),
     batchNumber: formData.get('batchNumber'),
