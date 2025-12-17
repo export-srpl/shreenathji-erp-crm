@@ -14,16 +14,47 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
 import { Settings, LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+}
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  
   // Auth routes that should not show sidebar: login and reset password pages
   const isAuthRoute = pathname === '/login' || 
                       pathname === '/reset-password' || 
                       pathname.startsWith('/reset-password/');
+
+  // Fetch current user on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const user = await res.json();
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    if (!isAuthRoute) {
+      fetchUser();
+    }
+  }, [isAuthRoute]);
 
   async function handleLogout() {
     try {
@@ -74,13 +105,35 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4 border-t">
           <div className="flex items-center gap-3">
             <Avatar>
-              <AvatarImage src="https://placehold.co/40x40" alt="Admin" data-ai-hint="person" />
-              <AvatarFallback>AD</AvatarFallback>
+              <AvatarImage 
+                src={currentUser?.id ? `/api/users/${currentUser.id}/avatar` : undefined} 
+                alt={currentUser?.name || 'User'} 
+                data-ai-hint="person" 
+              />
+              <AvatarFallback>
+                {currentUser?.name 
+                  ? currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                  : currentUser?.email 
+                    ? currentUser.email[0].toUpperCase()
+                    : 'U'}
+              </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <p className="text-sm font-semibold">Admin</p>
-              <p className="text-xs text-muted-foreground">admin@shreenathji.com</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate">
+                {isLoadingUser ? 'Loading...' : (currentUser?.name || 'User')}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {isLoadingUser ? '' : (currentUser?.email || '')}
+              </p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push('/profile')}
+              aria-label="Profile settings"
+            >
+              <Settings />
+            </Button>
             <Button
               variant="ghost"
               size="icon"

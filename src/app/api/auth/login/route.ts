@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
-  const res = NextResponse.json({ success: true });
+  const res = NextResponse.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
 
   // Determine if we're in production (Vercel sets VERCEL_ENV, or check for HTTPS)
   const isProduction = process.env.VERCEL_ENV === 'production' || 
@@ -53,6 +53,16 @@ export async function POST(req: Request) {
     secure: isProduction, // Use HTTPS cookies in production
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'lax',
+  });
+
+  // Store user email in a non-httpOnly cookie so client can read it (for display purposes)
+  // In production, consider using a JWT or server-side session store instead
+  res.cookies.set('user_email', user.email, {
+    httpOnly: false, // Allow client-side access
+    secure: isProduction,
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
     sameSite: 'lax',
   });
 

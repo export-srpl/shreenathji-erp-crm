@@ -17,6 +17,15 @@ export async function POST() {
     sameSite: 'lax',
   });
 
+  // Also clear the user_email cookie
+  res.cookies.set('user_email', '', {
+    httpOnly: false,
+    secure: isProduction,
+    path: '/',
+    maxAge: 0,
+    sameSite: 'lax',
+  });
+
   return res;
 }
 
