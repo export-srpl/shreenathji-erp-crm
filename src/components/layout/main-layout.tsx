@@ -20,7 +20,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const isAuthRoute = pathname === '/login';
+  // Auth routes that should not show sidebar: login and reset password pages
+  const isAuthRoute = pathname === '/login' || 
+                      pathname === '/reset-password' || 
+                      pathname.startsWith('/reset-password/');
 
   async function handleLogout() {
     try {
@@ -41,7 +44,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // On the login page, render a minimal layout with no sidebar or navigation.
+  // On auth pages (login, reset password), render a minimal layout with no sidebar or navigation.
   if (isAuthRoute) {
     return <main className="min-h-screen flex items-center justify-center bg-muted px-4">{children}</main>;
   }
