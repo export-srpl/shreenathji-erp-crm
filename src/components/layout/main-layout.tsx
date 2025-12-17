@@ -13,11 +13,33 @@ import { SidebarNav } from './sidebar-nav';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
 import { Settings, LogOut } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
   const isAuthRoute = pathname === '/login';
+
+  async function handleLogout() {
+    try {
+      setLoggingOut(true);
+      const res = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        console.error('Logout failed', await res.text());
+      }
+    } catch (e) {
+      console.error('Logout error', e);
+    } finally {
+      setLoggingOut(false);
+      // Redirect to login; middleware will also enforce logged-out state
+      router.push('/login');
+    }
+  }
 
   // On the login page, render a minimal layout with no sidebar or navigation.
   if (isAuthRoute) {
@@ -56,8 +78,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold">Admin</p>
               <p className="text-xs text-muted-foreground">admin@shreenathji.com</p>
             </div>
-            <Button variant="ghost" size="icon">
-              <LogOut />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              aria-label="Sign out"
+            >
+              <LogOut className={loggingOut ? 'animate-spin' : ''} />
             </Button>
           </div>
         </SidebarFooter>
