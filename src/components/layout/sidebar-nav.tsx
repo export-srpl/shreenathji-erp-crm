@@ -46,9 +46,7 @@ const navItems = [
       { href: '/sales/dashboard', label: 'Sales Dashboard' },
     ],
   },
-  { href: '/qc/coa-generator', label: 'COA Generator', icon: FlaskConical },
-  { href: '#', label: 'Purchase', icon: ShoppingBag, disabled: true },
-  { href: '#', label: 'Production', icon: Factory, disabled: true },
+  // { href: '/qc/coa-generator', label: 'COA Generator', icon: FlaskConical },
     {
     label: 'Customers',
     icon: Users,
@@ -78,15 +76,7 @@ const navItems = [
       { href: '/finance/payments-received', label: 'Payments Received' },
     ],
   },
-    {
-    label: 'AI',
-    icon: BrainCircuit,
-    items: [
-      { href: '/ai/forecasting', label: 'Forecasting' },
-      { href: '/ai/predictions', label: 'Predictions' },
-    ],
-  },
-    {
+  {
     label: 'Mobile',
     icon: Smartphone,
     items: [
@@ -95,13 +85,6 @@ const navItems = [
     ],
   },
   {
-    label: 'Support',
-    icon: HeartHandshake,
-    items: [
-      { href: '/support/amc-contracts', label: 'AMC Contracts' },
-    ],
-  },
-    {
     label: 'Reports',
     icon: BarChart3,
     items: [
@@ -110,20 +93,12 @@ const navItems = [
     ],
   },
   { href: '/documents', label: 'Documents', icon: Folder },
-   {
-    label: 'Security',
+  {
     icon: Shield,
     items: [
       { href: '/security/audit-logs', label: 'Audit Logs' },
       { href: '/security/2fa', label: '2FA' },
       { href: '/security/ip-whitelist', label: 'IP Whitelist' },
-    ],
-  },
-  {
-    label: 'Integrations',
-    icon: Globe,
-    items: [
-      { href: '/integrations', label: 'Integration Hub' },
     ],
   },
   { href: '/users-roles', label: 'Users & Roles', icon: Users },
