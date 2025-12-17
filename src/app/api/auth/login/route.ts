@@ -43,11 +43,16 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({ success: true });
 
+  // Determine if we're in production (Vercel sets VERCEL_ENV, or check for HTTPS)
+  const isProduction = process.env.VERCEL_ENV === 'production' || 
+                      process.env.NODE_ENV === 'production' ||
+                      (process.env.VERCEL_URL && process.env.VERCEL_URL.startsWith('https://'));
+
   res.cookies.set('app_session', 'valid', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction, // Use HTTPS cookies in production
     path: '/',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24 * 7, // 7 days
     sameSite: 'lax',
   });
 
