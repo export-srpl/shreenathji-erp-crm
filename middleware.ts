@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const DASHBOARD_PATH = '/sales/dashboard';
+
 const PUBLIC_PATH_PREFIXES = [
-  '/login',
   '/api/auth/login',
   '/_next',
   '/favicon.ico',
@@ -15,20 +16,44 @@ function isPublicPath(pathname: string) {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const sessionCookie = req.cookies.get('app_session');
+  const isLoggedIn = !!sessionCookie?.value;
 
-  // Allow public assets and login-related routes
+  // Allow static assets and auth API
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  // Only gate access to application pages, not other API routes
+  // Root: decide between dashboard and login based on session
+  if (pathname === '/' || pathname === '') {
+    const url = new URL(req.url);
+    if (isLoggedIn) {
+      url.pathname = DASHBOARD_PATH;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+    url.pathname = '/login';
+    url.searchParams.set('redirectTo', DASHBOARD_PATH);
+    return NextResponse.redirect(url);
+  }
+
+  // Login page: if already logged in, send to dashboard
+  if (pathname === '/login') {
+    if (isLoggedIn) {
+      const url = new URL(req.url);
+      url.pathname = DASHBOARD_PATH;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
+
+  // Only gate access to application pages, not other API routes (besides auth)
   if (pathname.startsWith('/api') && !pathname.startsWith('/api/auth')) {
     return NextResponse.next();
   }
 
-  const sessionCookie = req.cookies.get('app_session');
-  const isLoggedIn = !!sessionCookie?.value;
-
+  // For all other app pages, require login
   if (!isLoggedIn) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('redirectTo', pathname);

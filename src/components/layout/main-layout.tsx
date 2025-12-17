@@ -1,3 +1,5 @@
+'use client';
+
 import {
   SidebarProvider,
   Sidebar,
@@ -11,8 +13,17 @@ import { SidebarNav } from './sidebar-nav';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
 import { Settings, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAuthRoute = pathname === '/login';
+
+  // On the login page, render a minimal layout with no sidebar or navigation.
+  if (isAuthRoute) {
+    return <main className="min-h-screen flex items-center justify-center bg-muted px-4">{children}</main>;
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>
