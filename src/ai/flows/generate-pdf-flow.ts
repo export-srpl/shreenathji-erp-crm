@@ -29,8 +29,10 @@ export async function generatePdf(input: GeneratePdfInput): Promise<GeneratePdfO
   return generatePdfFlow(input);
 }
 
-// This is a placeholder flow. In a real application, you would use a library
-// like Puppeteer or PDFKit to generate a real PDF from the documentData.
+// This was previously a demo placeholder. The application now uses dedicated
+// PDF generation logic in `src/lib/pdf-generator.ts` and related API routes.
+// To avoid confusion with demo data, this flow simply throws until wired
+// to a real implementation or removed entirely.
 const generatePdfFlow = ai.defineFlow(
   {
     name: 'generatePdfFlow',
@@ -38,11 +40,8 @@ const generatePdfFlow = ai.defineFlow(
     outputSchema: GeneratePdfOutputSchema,
   },
   async (input) => {
-    // For demonstration, we're returning a dummy base64 string representing a blank PDF.
-    // A real implementation would involve HTML-to-PDF conversion or another generation method.
-    const dummyPdfBase64 = 'JVBERi0xLjQKJVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='; // Tiny 1x1 pixel PNG as a placeholder
-    return {
-      pdfBase64: dummyPdfBase64,
-    };
+    throw new Error(
+      `generatePdfFlow is not configured. Use the dedicated PDF APIs (quotes/proforma/invoices) backed by pdf-generator instead.`,
+    );
   }
 );

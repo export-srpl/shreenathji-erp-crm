@@ -14,16 +14,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const mockAmcData = [
-  { id: 'amc-001', customer: 'Global Chemicals Inc.', startDate: '2024-01-15', endDate: '2025-01-14', status: 'Active' },
-  { id: 'amc-002', customer: 'Pharma Solutions Ltd.', startDate: '2023-08-01', endDate: '2024-07-31', status: 'Expired' },
-  { id: 'amc-003', customer: 'Innovate Labs', startDate: '2024-06-01', endDate: '2025-05-31', status: 'Active' },
-  { id: 'amc-004', customer: 'Agro Industries', startDate: '2024-03-10', endDate: '2025-03-09', status: 'Active' },
-  { id: 'amc-005', customer: 'Asia Pacific Polymers', startDate: '2023-11-20', endDate: '2024-11-19', status: 'Upcoming Renewal' },
-];
-
 export default function AmcContractsPage() {
-  const [contracts, setContracts] = useState(mockAmcData);
+  const [contracts] = useState<
+    {
+      id: string;
+      customer: string;
+      startDate: string;
+      endDate: string;
+      status: string;
+    }[]
+  >([]);
 
   return (
     <div>

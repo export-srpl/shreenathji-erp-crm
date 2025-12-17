@@ -3,8 +3,14 @@ import type { NextRequest } from 'next/server';
 
 const DASHBOARD_PATH = '/sales/dashboard';
 
+// Public paths that should always be reachable without an active session.
 const PUBLIC_PATH_PREFIXES = [
+  '/login',
+  '/reset-password',
   '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/request-password-reset',
+  '/api/auth/reset-password',
   '/_next',
   '/favicon.ico',
   '/public',
@@ -19,7 +25,7 @@ export function middleware(req: NextRequest) {
   const sessionCookie = req.cookies.get('app_session');
   const isLoggedIn = !!sessionCookie?.value;
 
-  // Allow static assets and auth API
+  // Allow static assets, login/reset pages, and auth APIs
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
@@ -66,5 +72,4 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
-
 

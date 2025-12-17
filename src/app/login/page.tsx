@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
 function LoginForm() {
@@ -89,9 +90,16 @@ function LoginForm() {
               required
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </Button>
+          <div className="space-y-2">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
+            </Button>
+            <div className="text-center text-xs text-muted-foreground">
+              <Link href="/reset-password" className="underline underline-offset-4 hover:text-primary">
+                Forgot password?
+              </Link>
+            </div>
+          </div>
         </form>
       </CardContent>
     </Card>

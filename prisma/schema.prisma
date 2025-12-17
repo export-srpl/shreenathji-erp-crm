@@ -9,16 +9,28 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(cuid())
-  firebaseUid String       @unique
-  email       String       @unique
-  name        String?
-  role        String       @default("user")
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  leads       Lead[]       @relation("UserLeads")
-  quotes      Quote[]      @relation("UserQuotes")
-  sales       SalesOrder[] @relation("UserSales")
+  id           String       @id @default(cuid())
+  firebaseUid  String       @unique
+  email        String       @unique
+  name         String?
+  role         String       @default("user")
+  passwordHash String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  leads        Lead[]       @relation("UserLeads")
+  quotes       Quote[]      @relation("UserQuotes")
+  sales        SalesOrder[] @relation("UserSales")
+  resetTokens  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
 }
 
 model Customer {
