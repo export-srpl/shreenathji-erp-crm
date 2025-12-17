@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -19,25 +19,78 @@ const products = ['Formaldehyde', 'Hexamine', 'Paraformaldehyde', 'Urea-Formalde
 const leadStatuses = ['New', 'Contacted', 'Qualified', 'Disqualified', 'Converted'];
 const contactMethods = ['Email', 'Phone', 'WhatsApp'];
 
-export default function AddLeadPage() {
+function LeadForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const user = null;
 
   const [selectedCountry, setSelectedCountry] = useState('');
   const [assignedSalesperson, setAssignedSalesperson] = useState('');
+  const [initialValues, setInitialValues] = useState<Record<string, any> | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = false;
   const isSalesPerson = false;
+  const leadId = searchParams.get('leadId');
 
   useEffect(() => {
     if (isSalesPerson && user?.displayName && salesPeople.includes(user.displayName)) {
-        setAssignedSalesperson(user.displayName);
+      setAssignedSalesperson(user.displayName);
     }
   }, [isSalesPerson, user]);
 
+  // If editing, load existing lead data
+  useEffect(() => {
+    async function loadLead() {
+      if (!leadId) return;
+      try {
+        const res = await fetch(`/api/leads/${leadId}`);
+        if (!res.ok) throw new Error('Failed to load lead');
+        const lead = await res.json();
+
+        setInitialValues({
+          leadSource: lead.source ?? '',
+          companyName: lead.companyName ?? '',
+          website: '',
+          gstNo: lead.gstNo ?? '',
+          contactName: lead.contactName ?? '',
+          designation: '',
+          email: lead.email ?? '',
+          phone: lead.phone ?? '',
+          country: lead.country ?? '',
+          state: lead.state ?? '',
+          industry: '',
+          productInterest: lead.productInterest ?? '',
+          application: '',
+          monthlyRequirement: '',
+          assignedSalesperson: lead.assignedSalesperson ?? '',
+          leadStatus: lead.status ?? 'New',
+          followUpDate: '',
+          contactMethod: '',
+          notes: lead.notes ?? '',
+        });
+
+        setSelectedCountry(lead.country ?? '');
+        if (lead.assignedSalesperson) {
+          setAssignedSalesperson(lead.assignedSalesperson);
+        }
+      } catch (error) {
+        console.error(error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load lead',
+          description: 'Could not load the lead for editing.',
+        });
+      }
+    }
+
+    loadLead();
+  }, [leadId, toast, isSalesPerson, user]);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setIsSaving(true);
     const formData = new FormData(event.currentTarget);
     const leadData = {
       leadSource: formData.get('leadSource') as string,
@@ -63,8 +116,12 @@ export default function AddLeadPage() {
     };
 
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
+      const isEdit = !!leadId;
+      const url = isEdit ? `/api/leads/${leadId}` : '/api/leads';
+      const method = isEdit ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadSource: leadData.leadSource,
@@ -83,12 +140,12 @@ export default function AddLeadPage() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create lead');
+        throw new Error(isEdit ? 'Failed to update lead' : 'Failed to create lead');
       }
 
       toast({
-        title: 'Lead Added',
-        description: `Lead for "${leadData.companyName}" has been successfully created.`,
+        title: isEdit ? 'Lead Updated' : 'Lead Added',
+        description: `"${leadData.companyName}" has been ${isEdit ? 'updated' : 'created'} successfully.`,
       });
 
       router.push('/sales/leads');
@@ -96,17 +153,23 @@ export default function AddLeadPage() {
       console.error(error);
       toast({
         variant: 'destructive',
-        title: 'Failed to add lead',
+        title: 'Failed to save lead',
         description: 'Please try again later.',
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Add New Lead</h1>
-        <p className="text-muted-foreground">Enter the details for the new sales lead.</p>
+        <h1 className="text-3xl font-bold tracking-tight font-headline">
+          {leadId ? 'Edit Lead' : 'Add New Lead'}
+        </h1>
+        <p className="text-muted-foreground">
+          {leadId ? 'Update the details for this sales lead.' : 'Enter the details for the new sales lead.'}
+        </p>
       </div>
       <Card>
         <CardHeader>
@@ -122,7 +185,7 @@ export default function AddLeadPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label htmlFor="leadSource">Lead Source</Label>
-                  <Select name="leadSource" required>
+                  <Select name="leadSource" required defaultValue={initialValues?.leadSource}>
                     <SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger>
                     <SelectContent>
                       {leadSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -131,11 +194,23 @@ export default function AddLeadPage() {
                 </div>
                 <div>
                   <Label htmlFor="companyName">Company Name</Label>
-                  <Input id="companyName" name="companyName" placeholder="e.g. Acme Corporation" required />
+                  <Input
+                    id="companyName"
+                    name="companyName"
+                    placeholder="e.g. Acme Corporation"
+                    required
+                    defaultValue={initialValues?.companyName}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="website">Website</Label>
-                  <Input id="website" name="website" type="url" placeholder="e.g. https://acme.com" />
+                  <Input
+                    id="website"
+                    name="website"
+                    type="url"
+                    placeholder="e.g. https://acme.com"
+                    defaultValue={initialValues?.website}
+                  />
                 </div>
               </div>
             </div>
@@ -148,19 +223,44 @@ export default function AddLeadPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <Label htmlFor="contactName">Contact Name</Label>
-                  <Input id="contactName" name="contactName" placeholder="e.g. Jane Doe" required />
+                  <Input
+                    id="contactName"
+                    name="contactName"
+                    placeholder="e.g. Jane Doe"
+                    required
+                    defaultValue={initialValues?.contactName}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="designation">Job Title / Designation</Label>
-                  <Input id="designation" name="designation" placeholder="e.g. Purchase Manager" />
+                  <Input
+                    id="designation"
+                    name="designation"
+                    placeholder="e.g. Purchase Manager"
+                    defaultValue={initialValues?.designation}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" placeholder="e.g. jane.doe@acme.com" required />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="e.g. jane.doe@acme.com"
+                    required
+                    defaultValue={initialValues?.email}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone / WhatsApp</Label>
-                  <Input id="phone" name="phone" type="tel" placeholder="e.g. +91 123 456 7890" required />
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="e.g. +91 123 456 7890"
+                    required
+                    defaultValue={initialValues?.phone}
+                  />
                 </div>
               </div>
             </div>
@@ -173,7 +273,12 @@ export default function AddLeadPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <Label htmlFor="country">Country</Label>
-                        <Select name="country" required onValueChange={setSelectedCountry} value={selectedCountry}>
+                        <Select
+                          name="country"
+                          required
+                          onValueChange={setSelectedCountry}
+                          value={selectedCountry || initialValues?.country || undefined}
+                        >
                             <SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger>
                             <SelectContent>
                                 {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -182,12 +287,23 @@ export default function AddLeadPage() {
                     </div>
                     <div>
                         <Label htmlFor="state">State</Label>
-                        <Input id="state" name="state" placeholder="e.g. Gujarat" required />
+                        <Input
+                          id="state"
+                          name="state"
+                          placeholder="e.g. Gujarat"
+                          required
+                          defaultValue={initialValues?.state}
+                        />
                     </div>
                     {selectedCountry === 'India' && (
                         <div>
                             <Label htmlFor="gstNo">GST Number (Optional)</Label>
-                            <Input id="gstNo" name="gstNo" placeholder="e.g. 24AAABC1234D1Z2" />
+                            <Input
+                              id="gstNo"
+                              name="gstNo"
+                              placeholder="e.g. 24AAABC1234D1Z2"
+                              defaultValue={initialValues?.gstNo}
+                            />
                         </div>
                     )}
                 </div>
@@ -201,11 +317,20 @@ export default function AddLeadPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <Label htmlFor="industry">Industry</Label>
-                  <Input id="industry" name="industry" placeholder="e.g. Pharmaceuticals" />
+                  <Input
+                    id="industry"
+                    name="industry"
+                    placeholder="e.g. Pharmaceuticals"
+                    defaultValue={initialValues?.industry}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="productInterest">Product Interest</Label>
-                  <Select name="productInterest" required>
+                  <Select
+                    name="productInterest"
+                    required
+                    defaultValue={initialValues?.productInterest}
+                  >
                     <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                     <SelectContent>
                       {products.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -214,11 +339,22 @@ export default function AddLeadPage() {
                 </div>
                 <div>
                   <Label htmlFor="application">Application / End Use</Label>
-                  <Input id="application" name="application" placeholder="e.g. Resin Manufacturing" />
+                  <Input
+                    id="application"
+                    name="application"
+                    placeholder="e.g. Resin Manufacturing"
+                    defaultValue={initialValues?.application}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="monthlyRequirement">Approx. Monthly Requirement (MT)</Label>
-                  <Input id="monthlyRequirement" name="monthlyRequirement" type="number" placeholder="e.g. 100" />
+                  <Input
+                    id="monthlyRequirement"
+                    name="monthlyRequirement"
+                    type="number"
+                    placeholder="e.g. 100"
+                    defaultValue={initialValues?.monthlyRequirement}
+                  />
                 </div>
               </div>
             </div>
@@ -232,12 +368,12 @@ export default function AddLeadPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div>
                             <Label htmlFor="assignedSalesperson">Assigned Salesperson</Label>
-                            <Select 
-                                name="assignedSalesperson" 
-                                required
-                                onValueChange={setAssignedSalesperson}
-                                value={assignedSalesperson}
-                                disabled={!isAdmin}
+                            <Select
+                              name="assignedSalesperson"
+                              required
+                              onValueChange={setAssignedSalesperson}
+                              value={assignedSalesperson || initialValues?.assignedSalesperson || undefined}
+                              disabled={!isAdmin}
                             >
                                 <SelectTrigger><SelectValue placeholder="Select a salesperson" /></SelectTrigger>
                                 <SelectContent>
@@ -247,7 +383,11 @@ export default function AddLeadPage() {
                         </div>
                         <div>
                             <Label htmlFor="leadStatus">Lead Status</Label>
-                            <Select name="leadStatus" defaultValue="New" required>
+                            <Select
+                              name="leadStatus"
+                              defaultValue={initialValues?.leadStatus || 'New'}
+                              required
+                            >
                                 <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                                 <SelectContent>
                                     {leadStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -261,11 +401,19 @@ export default function AddLeadPage() {
                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                          <div>
                             <Label htmlFor="followUpDate">Next Follow-up Date</Label>
-                            <Input id="followUpDate" name="followUpDate" type="date" />
+                            <Input
+                              id="followUpDate"
+                              name="followUpDate"
+                              type="date"
+                              defaultValue={initialValues?.followUpDate}
+                            />
                         </div>
                         <div>
                             <Label htmlFor="contactMethod">Preferred Contact Method</Label>
-                            <Select name="contactMethod">
+                            <Select
+                              name="contactMethod"
+                              defaultValue={initialValues?.contactMethod}
+                            >
                                 <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
                                 <SelectContent>
                                     {contactMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -281,16 +429,40 @@ export default function AddLeadPage() {
             {/* Notes */}
             <div>
               <Label htmlFor="notes">Remarks / Notes</Label>
-              <Textarea id="notes" name="notes" placeholder="Any additional information about the lead..." rows={4} />
+              <Textarea
+                id="notes"
+                name="notes"
+                placeholder="Any additional information about the lead..."
+                rows={4}
+                defaultValue={initialValues?.notes}
+              />
             </div>
             
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-                <Button type="submit">Save Lead</Button>
+              <Button type="button" variant="outline" onClick={() => router.back()}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving…' : leadId ? 'Update Lead' : 'Save Lead'}
+              </Button>
             </div>
           </form>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function AddLeadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <span>Loading…</span>
+        </div>
+      }
+    >
+      <LeadForm />
+    </Suspense>
   );
 }

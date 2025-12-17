@@ -10,6 +10,7 @@ import type { Lead } from '@/types';
 import { Badge } from "../ui/badge";
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 const PAGE_SIZE = 15;
 
@@ -23,6 +24,7 @@ const stageConfig: Record<Lead['status'], { color: string }> = {
 
 export function LeadsTable() {
   const { toast } = useToast();
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pagination, setPagination] = useState<{ page: number }>({ page: 0 });
@@ -102,7 +104,11 @@ export function LeadsTable() {
               </TableHeader>
               <TableBody>
                 {pagedLeads.map((lead) => (
-                  <TableRow key={lead.id}>
+                  <TableRow
+                    key={lead.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/sales/leads/add?leadId=${lead.id}`)}
+                  >
                     <TableCell className="font-medium">{lead.companyName}</TableCell>
                     <TableCell>{lead.email}</TableCell>
                     <TableCell>{lead.phone}</TableCell>
