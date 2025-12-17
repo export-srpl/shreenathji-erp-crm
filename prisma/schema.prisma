@@ -56,24 +56,29 @@ model Customer {
 }
 
 model Lead {
-  id              String   @id @default(cuid())
-  companyName     String
-  contactName     String?
-  email           String?
-  phone           String?
-  country         String?
-  state           String?
-  gstNo           String?
-  billingAddress  String?
-  shippingAddress String?
-  status          String
-  source          String?
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  ownerId         String?
-  owner           User?    @relation("UserLeads", fields: [ownerId], references: [id])
-  quotes          Quote[]
+  id                  String   @id @default(cuid())
+  companyName         String
+  contactName         String?
+  email               String?
+  phone               String?
+  country             String?
+  state               String?
+  city                String?
+  billingAddress      String?
+  shippingAddress     String?
+  gstNo               String?
+  status              String
+  source              String?
+  productInterest     String?
+  application         String?
+  monthlyRequirement  String?
+  followUpDate        DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  ownerId             String?
+  owner               User?    @relation("UserLeads", fields: [ownerId], references: [id])
+  quotes              Quote[]
 }
 
 model Product {

@@ -32,23 +32,37 @@ export async function PATCH(req: Request, { params }: Params) {
   const body = await req.json();
 
   try {
+    // When editing, only allow updating specific fields: status, followUpDate, productInterest, application, monthlyRequirement
+    // Other fields remain unchanged unless explicitly provided
+    const updateData: any = {};
+    
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.followUpDate !== undefined) {
+      updateData.followUpDate = body.followUpDate ? new Date(body.followUpDate) : null;
+    }
+    if (body.productInterest !== undefined) updateData.productInterest = body.productInterest;
+    if (body.application !== undefined) updateData.application = body.application;
+    if (body.monthlyRequirement !== undefined) updateData.monthlyRequirement = body.monthlyRequirement;
+    
+    // Allow full update if explicitly requested (for admin/initial creation)
+    if (body.allowFullUpdate) {
+      updateData.companyName = body.companyName;
+      updateData.contactName = body.contactName;
+      updateData.email = body.email;
+      updateData.phone = body.phone;
+      updateData.country = body.country;
+      updateData.state = body.state;
+      updateData.city = body.city;
+      updateData.gstNo = body.gstNo;
+      updateData.billingAddress = body.billingAddress;
+      updateData.shippingAddress = body.shippingAddress;
+      updateData.source = body.leadSource;
+      updateData.notes = body.notes;
+    }
+
     const updated = await prisma.lead.update({
       where: { id: params.id },
-      data: {
-        companyName: body.companyName,
-        contactName: body.contactName,
-        email: body.email,
-        phone: body.phone,
-        country: body.country,
-        state: body.state,
-        gstNo: body.gstNo,
-        billingAddress: body.billingAddress,
-        shippingAddress: body.shippingAddress,
-        status: body.status,
-        source: body.leadSource,
-        notes: body.notes,
-        // optional fields can be added here as you extend the schema
-      },
+      data: updateData,
     });
 
     return NextResponse.json(updated);
