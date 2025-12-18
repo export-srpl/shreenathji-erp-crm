@@ -14,8 +14,6 @@ import { Separator } from '@/components/ui/separator';
 import { countries } from '@/lib/countries';
 
 const leadSources = ['Website', 'Referral', 'Exhibition', 'Cold Call', 'IndiaMART', 'Other'];
-const salesPeople = ['Ashok Lakhani', 'Jay Lakhani', 'Sachin Vadhvana', 'Prakash Gajjar'];
-const products = ['Formaldehyde', 'Hexamine', 'Paraformaldehyde', 'Urea-Formaldehyde Resin'];
 const leadStatuses = ['New', 'Contacted', 'Qualified', 'Disqualified', 'Converted'];
 const contactMethods = ['Email', 'Phone', 'WhatsApp'];
 
@@ -23,22 +21,74 @@ function LeadForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const user = null;
 
   const [selectedCountry, setSelectedCountry] = useState('');
-  const [assignedSalesperson, setAssignedSalesperson] = useState('');
+  const [assignedSalesperson, setAssignedSalesperson] = useState<string>('');
   const [initialValues, setInitialValues] = useState<Record<string, any> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [salesPeople, setSalesPeople] = useState<{ id: string; name: string }[]>([]);
+  const [products, setProducts] = useState<string[]>([]);
+  const [leadSource, setLeadSource] = useState('');
+  const [leadStatus, setLeadStatus] = useState('New');
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const isAdmin = false;
-  const isSalesPerson = false;
+  const isAdmin = currentUserRole === 'admin';
+  const isSalesPerson = currentUserRole === 'sales';
   const leadId = searchParams.get('leadId');
 
+  // Fetch current auth context (role, user id)
   useEffect(() => {
-    if (isSalesPerson && user?.displayName && salesPeople.includes(user.displayName)) {
-      setAssignedSalesperson(user.displayName);
+    const fetchAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUserRole((data.role || '').toLowerCase());
+          setCurrentUserId(data.id || null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch auth context:', error);
+      }
+    };
+    fetchAuth();
+  }, []);
+
+  // Fetch sales people and products from APIs
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch users with Sales role
+        const usersRes = await fetch('/api/users');
+        if (usersRes.ok) {
+          const users = await usersRes.json();
+          const salesUsers = users
+            .filter((u: any) => (u.role || '').toLowerCase() === 'sales')
+            .map((u: any) => ({ id: u.id, name: u.name || u.email || 'Unknown' }));
+          setSalesPeople(salesUsers);
+        }
+
+        // Fetch products (from Inventory → Products)
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const productsData = await productsRes.json();
+          const productNames = productsData.map((p: any) => p.name).filter((name: string) => name);
+          setProducts(productNames);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Default assigned salesperson for sales users
+  useEffect(() => {
+    if (isSalesPerson && currentUserId && !assignedSalesperson) {
+      setAssignedSalesperson(currentUserId);
     }
-  }, [isSalesPerson, user]);
+  }, [isSalesPerson, currentUserId, assignedSalesperson]);
 
   // If editing, load existing lead data
   useEffect(() => {
@@ -74,8 +124,10 @@ function LeadForm() {
         });
 
         setSelectedCountry(lead.country ?? '');
-        if (lead.assignedSalesperson) {
-          setAssignedSalesperson(lead.assignedSalesperson);
+        setLeadSource(lead.source ?? '');
+        setLeadStatus(lead.status ?? 'New');
+        if (lead.ownerId) {
+          setAssignedSalesperson(lead.ownerId);
         }
       } catch (error) {
         console.error(error);
@@ -88,7 +140,7 @@ function LeadForm() {
     }
 
     loadLead();
-  }, [leadId, toast, isSalesPerson, user]);
+  }, [leadId, toast, isSalesPerson]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -103,14 +155,24 @@ function LeadForm() {
       let requestBody: any;
       
       if (isEdit) {
-        // When editing, only send updatable fields
+        // When editing, update status and follow-up + business fields.
+        // For admins, also allow updating lead source and owner (reassignment).
         requestBody = {
           status: formData.get('leadStatus') as string,
-          followUpDate: formData.get('followUpDate') as string || null,
+          followUpDate: (formData.get('followUpDate') as string) || null,
           productInterest: formData.get('productInterest') as string,
           application: formData.get('application') as string,
           monthlyRequirement: formData.get('monthlyRequirement') as string,
         };
+
+        if (isAdmin) {
+          requestBody = {
+            ...requestBody,
+            allowFullUpdate: true,
+            source: formData.get('leadSource') as string,
+            ownerId: assignedSalesperson || null,
+          };
+        }
       } else {
         // When creating, send all fields
         requestBody = {
@@ -129,7 +191,7 @@ function LeadForm() {
           productInterest: formData.get('productInterest') as string,
           application: formData.get('application') as string,
           monthlyRequirement: formData.get('monthlyRequirement') as string,
-          assignedSalesperson: assignedSalesperson,
+          ownerId: assignedSalesperson || null,
           status: formData.get('leadStatus') as string,
           followUpDate: formData.get('followUpDate') as string || null,
           notes: formData.get('notes') as string,
@@ -143,7 +205,9 @@ function LeadForm() {
       });
 
       if (!res.ok) {
-        throw new Error(isEdit ? 'Failed to update lead' : 'Failed to create lead');
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData.error || (isEdit ? 'Failed to update lead' : 'Failed to create lead');
+        throw new Error(message);
       }
 
       const leadData = await res.json();
@@ -189,10 +253,21 @@ function LeadForm() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label htmlFor="leadSource">Lead Source</Label>
-                  <Select name="leadSource" required defaultValue={initialValues?.leadSource} disabled={!!leadId}>
-                    <SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger>
+                  <Select
+                    name="leadSource"
+                    required
+                    value={leadSource || initialValues?.leadSource || ''}
+                    onValueChange={setLeadSource}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a source" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {leadSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {leadSources.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -406,12 +481,18 @@ function LeadForm() {
                               name="assignedSalesperson"
                               required
                               onValueChange={setAssignedSalesperson}
-                              value={assignedSalesperson || initialValues?.assignedSalesperson || undefined}
+                              value={assignedSalesperson || ''}
                               disabled={!isAdmin}
                             >
-                                <SelectTrigger><SelectValue placeholder="Select a salesperson" /></SelectTrigger>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a salesperson" />
+                                </SelectTrigger>
                                 <SelectContent>
-                                    {salesPeople.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                                  {salesPeople.map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.name}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -419,13 +500,20 @@ function LeadForm() {
                             <Label htmlFor="leadStatus">Lead Status</Label>
                             <Select
                               name="leadStatus"
-                              defaultValue={initialValues?.leadStatus || 'New'}
+                              value={leadStatus}
+                              onValueChange={setLeadStatus}
                               required
                             >
-                                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                                <SelectContent>
-                                    {leadStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                </SelectContent>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {leadStatuses.map((s) => (
+                                  <SelectItem key={s} value={s}>
+                                    {s}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
                             </Select>
                         </div>
                     </div>
@@ -472,13 +560,48 @@ function LeadForm() {
               />
             </div>
             
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => router.back()}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving…' : leadId ? 'Update Lead' : 'Save Lead'}
-              </Button>
+            <div className="flex justify-between items-center gap-4">
+              {leadId && isAdmin && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) return;
+                    try {
+                      setIsSaving(true);
+                      const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+                      if (!res.ok) {
+                        const errorData = await res.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Failed to delete lead');
+                      }
+                      toast({
+                        title: 'Lead deleted',
+                        description: 'The lead has been removed successfully.',
+                      });
+                      router.push('/sales/leads');
+                    } catch (error) {
+                      console.error(error);
+                      toast({
+                        variant: 'destructive',
+                        title: 'Failed to delete lead',
+                        description: 'Please try again later.',
+                      });
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                >
+                  Delete Lead
+                </Button>
+              )}
+              <div className="flex justify-end gap-2 flex-1">
+                <Button type="button" variant="outline" onClick={() => router.back()}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? 'Saving…' : leadId ? 'Update Lead' : 'Save Lead'}
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>

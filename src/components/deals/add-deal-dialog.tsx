@@ -268,22 +268,12 @@ export function AddDealDialog({ open, onOpenChange, onDealAdded, dealToEdit }: A
                   <div key={index} className="flex gap-2 items-end">
                     <div className="flex-1 space-y-2">
                       <Label>Product</Label>
-                      <Select
+                      <ProductCombobox
+                        products={products}
+                        onSelectProduct={(productId) => handleProductChange(index, productId)}
                         value={item.productId}
-                        onValueChange={(value) => handleProductChange(index, value)}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((product) => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        disabled={isSubmitting || isLoadingProducts}
+                      />
                     </div>
                     <div className="flex-1 space-y-2">
                       <Label>Quantity (MTS)</Label>
@@ -379,6 +369,66 @@ function CustomerCombobox({
                     className={cn('mr-2 h-4 w-4', value === customer.id ? 'opacity-100' : 'opacity-0')}
                   />
                   {customer.companyName}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ProductCombobox({
+  products,
+  onSelectProduct,
+  value,
+  disabled,
+}: {
+  products: Product[];
+  onSelectProduct: (productId: string) => void;
+  value: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const selectedProductName = useMemo(() => {
+    return products.find((product) => product.id === value)?.name;
+  }, [products, value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={disabled}
+        >
+          {value ? selectedProductName : 'Select product...'}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+        <Command>
+          <CommandInput placeholder="Search product..." />
+          <CommandEmpty>No product found.</CommandEmpty>
+          <CommandList className="max-h-[300px]">
+            <CommandGroup>
+              {products.map((product) => (
+                <CommandItem
+                  key={product.id}
+                  value={product.name}
+                  onSelect={() => {
+                    onSelectProduct(product.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn('mr-2 h-4 w-4', value === product.id ? 'opacity-100' : 'opacity-0')}
+                  />
+                  {product.name}
                 </CommandItem>
               ))}
             </CommandGroup>

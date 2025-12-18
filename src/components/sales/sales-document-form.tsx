@@ -37,7 +37,7 @@ type SalesDocumentFormProps = {
   isReadOnly?: boolean;
 };
 
-const salesPeople = ['Ashok Lakhani', 'Jay Lakhani', 'Sachin Vadhvana', 'Prakash Gajjar', 'Other'];
+// Sales people will be fetched from users API
 
 const domesticPaymentTerms = ['Advance', 'Immediate', '30 Days', '45 Days', '60 Days', '90 Days'];
 const internationalPaymentTerms = ['Advance', '100% Against BL', '100% LC', 'Other'];
@@ -98,16 +98,18 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [salesPeople, setSalesPeople] = useState<string[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
-  // Fetch customers and products from APIs
+  // Fetch customers, products, and sales people from APIs
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingData(true);
       try {
-        const [customersRes, productsRes] = await Promise.all([
+        const [customersRes, productsRes, usersRes] = await Promise.all([
           fetch('/api/customers'),
           fetch('/api/products'),
+          fetch('/api/users'),
         ]);
         
         if (customersRes.ok) {
@@ -126,12 +128,22 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
           }));
           setProducts(mappedProducts);
         }
+
+        if (usersRes.ok) {
+          const users = await usersRes.json();
+          // Filter users with Sales role and extract names
+          const salesUsers = users
+            .filter((u: any) => u.role === 'Sales')
+            .map((u: any) => u.name)
+            .filter((name: string) => name && name !== 'Unknown');
+          setSalesPeople([...salesUsers, 'Other']);
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
         toast({
           variant: 'destructive',
           title: 'Failed to load data',
-          description: 'Could not load customers or products.',
+          description: 'Could not load customers, products, or sales people.',
         });
       } finally {
         setIsLoadingData(false);

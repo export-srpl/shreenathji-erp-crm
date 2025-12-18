@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/invoices - list invoices with customer
 export async function GET() {
+  // SECURITY: Require authentication
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   const prisma = await getPrismaClient();
   const invoices = await prisma.invoice.findMany({
     include: { customer: true },

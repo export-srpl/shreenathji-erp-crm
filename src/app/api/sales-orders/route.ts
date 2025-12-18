@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/sales-orders - list sales orders with customer and items
 export async function GET() {
+  // SECURITY: Require authentication
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   const prisma = await getPrismaClient();
   const orders = await prisma.salesOrder.findMany({
     include: { customer: true, items: { include: { product: true } } },

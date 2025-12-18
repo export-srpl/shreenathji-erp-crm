@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/users - List all users
 export async function GET() {
+  // SECURITY: Require authentication
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   const prisma = await getPrismaClient();
 
   try {

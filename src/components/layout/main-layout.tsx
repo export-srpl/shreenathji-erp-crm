@@ -12,9 +12,10 @@ import {
 import { SidebarNav } from './sidebar-nav';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
-import { Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut, Clock } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { UniversalSearch } from './universal-search';
 
 interface CurrentUser {
   id: string;
@@ -29,11 +30,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   
-  // Auth routes that should not show sidebar: login and reset password pages
-  const isAuthRoute = pathname === '/login' || 
-                      pathname === '/reset-password' || 
-                      pathname.startsWith('/reset-password/');
+  // Auth routes that should not show sidebar or main CRM chrome
+  const isAuthRoute =
+    pathname === '/login' ||
+    pathname === '/login/verify-2fa' ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/reset-password/');
 
   // Fetch current user on mount
   useEffect(() => {
@@ -55,6 +59,15 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       fetchUser();
     }
   }, [isAuthRoute]);
+
+  // Update date and time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   async function handleLogout() {
     try {
@@ -106,7 +119,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <Avatar>
               <AvatarImage 
-                src={currentUser?.id ? `/api/users/${currentUser.id}/avatar` : undefined} 
+                src={currentUser?.avatarUrl || undefined} 
                 alt={currentUser?.name || 'User'} 
                 data-ai-hint="person" 
               />
@@ -120,10 +133,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">
-                {isLoadingUser ? 'Loading...' : (currentUser?.name || 'User')}
+                {isLoadingUser
+                  ? 'Loading...'
+                  : currentUser?.name?.trim()
+                    ? currentUser.name
+                    : currentUser?.email || 'User'}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                {isLoadingUser ? '' : (currentUser?.email || '')}
+                {isLoadingUser ? '' : currentUser?.email || ''}
               </p>
             </div>
             <Button
@@ -149,10 +166,29 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm sticky top-0 border-b z-10">
           <SidebarTrigger />
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Settings />
-            </Button>
+          <div className="flex-1 max-w-2xl mx-4">
+            <UniversalSearch />
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <div className="flex flex-col items-end">
+              <div className="font-medium" suppressHydrationWarning>
+                {currentDateTime.toLocaleDateString('en-IN', {
+                  weekday: 'short',
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </div>
+              <div className="text-xs text-muted-foreground font-mono" suppressHydrationWarning>
+                {currentDateTime.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })}
+              </div>
+            </div>
           </div>
         </header>
         <main className="flex-1 p-4 lg:p-6">{children}</main>

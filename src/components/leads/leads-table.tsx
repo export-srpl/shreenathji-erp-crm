@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, ChevronRight, Mail, Phone, MapPin, Building2, Calendar, Tag } from "lucide-react";
+import { Loader2, Mail, Phone, MapPin, Building2, Calendar, Tag } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Lead } from '@/types';
 import { Badge } from "../ui/badge";
@@ -12,8 +12,12 @@ import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SearchBar } from "@/components/data-table/search-bar";
+import { SortBy, SortOption } from "@/components/data-table/sort-by";
+import { FilterPanel, FilterOption } from "@/components/data-table/filter-panel";
+import { Pagination } from "@/components/data-table/pagination";
 
-const PAGE_SIZE = 15;
+const DEFAULT_PAGE_SIZE = 15;
 
 const stageConfig: Record<Lead['status'], { color: string; bgColor: string }> = {
     'New': { color: 'text-blue-700', bgColor: 'bg-blue-100 border-blue-200' },
@@ -23,12 +27,63 @@ const stageConfig: Record<Lead['status'], { color: string; bgColor: string }> = 
     'Disqualified': { color: 'text-red-700', bgColor: 'bg-red-100 border-red-200' }
   };
 
+const sortOptions: SortOption[] = [
+  { value: 'createdAt-desc', label: 'Newest First' },
+  { value: 'createdAt-asc', label: 'Oldest First' },
+  { value: 'companyName-asc', label: 'Company Name (A-Z)' },
+  { value: 'companyName-desc', label: 'Company Name (Z-A)' },
+  { value: 'status-asc', label: 'Status (A-Z)' },
+  { value: 'status-desc', label: 'Status (Z-A)' },
+];
+
+const filterOptions: FilterOption[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: [
+      { value: 'New', label: 'New' },
+      { value: 'Contacted', label: 'Contacted' },
+      { value: 'Qualified', label: 'Qualified' },
+      { value: 'Converted', label: 'Converted' },
+      { value: 'Disqualified', label: 'Disqualified' },
+    ],
+  },
+  {
+    key: 'source',
+    label: 'Source',
+    type: 'select',
+    options: [
+      { value: 'Website', label: 'Website' },
+      { value: 'Referral', label: 'Referral' },
+      { value: 'Exhibition', label: 'Exhibition' },
+      { value: 'Cold Call', label: 'Cold Call' },
+      { value: 'IndiaMART', label: 'IndiaMART' },
+      { value: 'Other', label: 'Other' },
+    ],
+  },
+  {
+    key: 'country',
+    label: 'Country',
+    type: 'text',
+  },
+  {
+    key: 'productInterest',
+    label: 'Product Interest',
+    type: 'text',
+  },
+];
+
 export function LeadsTable() {
   const { toast } = useToast();
   const router = useRouter();
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [pagination, setPagination] = useState<{ page: number }>({ page: 0 });
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt-desc');
+  const [filters, setFilters] = useState<Record<string, any>>({});
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -37,7 +92,7 @@ export function LeadsTable() {
         const res = await fetch('/api/leads');
         if (!res.ok) throw new Error('Failed to fetch leads');
         const data = await res.json();
-        setLeads(data);
+        setAllLeads(data);
       } catch (error) {
         console.error(error);
         toast({
@@ -53,24 +108,91 @@ export function LeadsTable() {
     fetchLeads();
   }, [toast]);
 
+  // Filter, search, and sort leads
+  const filteredAndSortedLeads = useMemo(() => {
+    let result = [...allLeads];
+
+    // Apply search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (lead) =>
+          lead.companyName?.toLowerCase().includes(query) ||
+          lead.contactName?.toLowerCase().includes(query) ||
+          lead.email?.toLowerCase().includes(query) ||
+          lead.phone?.toLowerCase().includes(query) ||
+          lead.productInterest?.toLowerCase().includes(query) ||
+          lead.country?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply filters
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && value !== '') {
+        result = result.filter((lead) => {
+          const leadValue = (lead as any)[key];
+          if (key === 'source') {
+            return lead.leadSource === value;
+          }
+          return String(leadValue || '').toLowerCase().includes(String(value).toLowerCase());
+        });
+      }
+    });
+
+    // Apply sorting
+    const [sortField, sortDirection] = sortBy.split('-');
+    result.sort((a, b) => {
+      let aValue: any = (a as any)[sortField];
+      let bValue: any = (b as any)[sortField];
+
+      if (sortField === 'createdAt') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      } else {
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+
+    return result;
+  }, [allLeads, searchQuery, filters, sortBy]);
+
+  // Paginate results
   const pagedLeads = useMemo(() => {
-    const start = pagination.page * PAGE_SIZE;
-    return leads.slice(start, start + PAGE_SIZE);
-  }, [leads, pagination.page]);
+    const start = currentPage * pageSize;
+    return filteredAndSortedLeads.slice(start, start + pageSize);
+  }, [filteredAndSortedLeads, currentPage, pageSize]);
 
-  const handleNext = () => {
-    const maxPage = Math.floor((leads.length - 1) / PAGE_SIZE);
-    setPagination(prev => ({
-      page: Math.min(prev.page + 1, maxPage),
-    }));
-  };
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchQuery, filters, sortBy]);
 
-  const handlePrev = () => {
-    if (pagination.page === 0) return;
-    setPagination(prev => ({
-      page: prev.page - 1,
-    }));
-  };
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleFilterChange = useCallback((key: string, value: any) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setFilters({});
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+  }, []);
 
   return (
       <Card className="card-enhanced">
@@ -79,15 +201,43 @@ export function LeadsTable() {
           <CardDescription>A complete list of all leads in the pipeline.</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Search, Sort, and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex-1">
+              <SearchBar
+                placeholder="Search leads by company, contact, email, phone..."
+                onSearch={handleSearch}
+                className="w-full"
+              />
+            </div>
+            <div className="flex gap-2">
+              <SortBy
+                options={sortOptions}
+                value={sortBy}
+                onSortChange={setSortBy}
+              />
+              <FilterPanel
+                filters={filterOptions}
+                values={filters}
+                onFilterChange={handleFilterChange}
+                onClear={handleClearFilters}
+              />
+            </div>
+          </div>
+
           {isLoading ? (
              <div className="flex justify-center items-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
              </div>
-          ) : leads.length === 0 ? (
+          ) : filteredAndSortedLeads.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">No leads found.</p>
-              <p className="text-sm mt-2">Click "Add New Lead" to get started.</p>
+              <p className="font-medium">
+                {allLeads.length === 0 ? 'No leads found.' : 'No leads match your search or filters.'}
+              </p>
+              <p className="text-sm mt-2">
+                {allLeads.length === 0 ? 'Click "Add New Lead" to get started.' : 'Try adjusting your search or filters.'}
+              </p>
             </div>
           ) : (
             <>
@@ -204,32 +354,14 @@ export function LeadsTable() {
                 </TableBody>
               </Table>
             </div>
-            <div className="flex items-center justify-between py-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Showing {pagination.page * PAGE_SIZE + 1} to {Math.min((pagination.page + 1) * PAGE_SIZE, leads.length)} of {leads.length} leads
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrev}
-                      disabled={pagination.page === 0 || isLoading}
-                      className="btn-enhanced"
-                  >
-                      <ChevronLeft className="mr-2 h-4 w-4" />
-                      Previous
-                  </Button>
-                  <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNext}
-                      disabled={!leads || (pagination.page + 1) * PAGE_SIZE >= leads.length || isLoading}
-                      className="btn-enhanced"
-                  >
-                      Next
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
+            <div className="mt-4 border-t pt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredAndSortedLeads.length}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </div>
             </>
           )}

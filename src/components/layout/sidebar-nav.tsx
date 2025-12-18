@@ -89,18 +89,20 @@ const navItems = [
     label: 'Reports',
     icon: BarChart3,
     items: [
-      { href: '/reports', label: 'Standard Reports' },
-      { href: '/reports/customer-orders', label: 'Customer Orders' },
+      { href: '/reports/leads', label: 'Leads Reports' },
+      { href: '/reports/deals-pipeline', label: 'Deals Pipeline Reports' },
+      { href: '/reports/contacts', label: 'Contact Reports' },
+      { href: '/reports/customers', label: 'Customer Reports' },
       { href: '/analytics/global-presence', label: 'Global Presence' },
     ],
   },
   { href: '/documents', label: 'Documents', icon: Folder },
   {
+    label: 'Security',
     icon: Shield,
     items: [
-      { href: '/security/audit-logs', label: 'Audit Logs' },
+      { href: '/security', label: 'Overview' },
       { href: '/security/2fa', label: '2FA' },
-      { href: '/security/ip-whitelist', label: 'IP Whitelist' },
     ],
   },
   { href: '/users-roles', label: 'Users & Roles', icon: Users },
@@ -139,7 +141,7 @@ export function SidebarNav() {
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)}
-                        disabled={subItem.disabled}
+                        disabled={(subItem as any).disabled}
                         tooltip={subItem.label}
                         className="font-normal"
                       >
@@ -158,7 +160,7 @@ export function SidebarNav() {
             <SidebarMenuButton
               asChild
               isActive={pathname === item.href}
-              disabled={item.disabled}
+              disabled={(item as any).disabled}
               tooltip={item.label}
             >
               <Link href={item.href || '#'}>

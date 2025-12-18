@@ -34,20 +34,21 @@ export default function SalesDashboardPage() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [summaryRes, funnelRes, customersRes] = await Promise.all([
+        // Use Promise.allSettled to prevent one failure from blocking others
+        const [summaryResult, funnelResult, customersResult] = await Promise.allSettled([
           fetch('/api/reports/sales-summary'),
           fetch('/api/reports/conversion-funnel'),
           fetch('/api/reports/top-customers?limit=5'),
         ]);
 
-        if (summaryRes.ok) {
-          setSalesSummary(await summaryRes.json());
+        if (summaryResult.status === 'fulfilled' && summaryResult.value.ok) {
+          setSalesSummary(await summaryResult.value.json());
         }
-        if (funnelRes.ok) {
-          setFunnel(await funnelRes.json());
+        if (funnelResult.status === 'fulfilled' && funnelResult.value.ok) {
+          setFunnel(await funnelResult.value.json());
         }
-        if (customersRes.ok) {
-          setTopCustomers(await customersRes.json());
+        if (customersResult.status === 'fulfilled' && customersResult.value.ok) {
+          setTopCustomers(await customersResult.value.json());
         }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);

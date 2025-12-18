@@ -56,7 +56,8 @@ export type Product = {
     id: string;
     productName: string;
     category: string;
-    hsnCode: string;
+    sku?: string;
+    hsnCode?: string;
 };
 
 export type Customer = {

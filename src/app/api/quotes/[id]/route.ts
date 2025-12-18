@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { quoteUpdateSchema, validateInput } from '@/lib/validation';
 
 type Params = {
   params: { id: string };
@@ -29,21 +30,48 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const prisma = await getPrismaClient();
-  const body = await req.json();
+  const rawBody = await req.json();
+
+  // Normalize and validate input
+  const normalized = {
+    status: rawBody.status,
+    notes: rawBody.notes,
+    items: Array.isArray(rawBody.items)
+      ? rawBody.items.map((item: any) => ({
+          productId: item.productId,
+          quantity: Number(item.quantity ?? item.qty ?? 0),
+          unitPrice: Number(item.unitPrice ?? item.rate ?? 0),
+          discountPct: item.discountPct ?? 0,
+        }))
+      : undefined,
+  };
+
+  const validation = validateInput(quoteUpdateSchema, normalized);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
+      },
+      { status: 400 },
+    );
+  }
+
+  const data = validation.data;
 
   try {
     const updated = await prisma.quote.update({
       where: { id: params.id },
       data: {
-        status: body.status,
-        notes: body.notes,
-        items: body.items
+        status: data.status,
+        notes: data.notes,
+        items: data.items
           ? {
               deleteMany: { quoteId: params.id },
-              create: body.items.map((item: any) => ({
+              create: data.items.map((item) => ({
                 productId: item.productId,
-                quantity: item.quantity ?? item.qty,
-                unitPrice: item.unitPrice ?? item.rate,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
                 discountPct: item.discountPct ?? 0,
               })),
             }

@@ -40,6 +40,14 @@ function LoginForm() {
         return;
       }
 
+      const data = await res.json();
+
+      // Check if 2FA is required
+      if (data.requires2FA) {
+        router.push(`/login/verify-2fa?email=${encodeURIComponent(email)}&redirectTo=${encodeURIComponent(redirectTo)}`);
+        return;
+      }
+
       toast({
         title: 'Welcome back',
         description: 'You have logged in successfully.',

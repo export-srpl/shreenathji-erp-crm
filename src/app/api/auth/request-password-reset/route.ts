@@ -1,7 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
+import { rateLimit, getClientIP } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
+  // SECURITY: Rate limiting - 3 requests per hour per IP
+  const clientIP = getClientIP(req);
+  const limit = await rateLimit(clientIP, 3, 60 * 60 * 1000);
+  
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { 
+        error: 'Too many password reset requests. Please try again later.',
+        retryAfter: Math.ceil((limit.resetTime - Date.now()) / 1000)
+      },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((limit.resetTime - Date.now()) / 1000).toString(),
+        }
+      }
+    );
+  }
+
   const { email } = (await req.json()) as { email?: string };
 
   if (!email) {
@@ -43,9 +63,15 @@ export async function POST(req: Request) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const resetUrl = `${baseUrl.replace(/\/$/, '')}/reset-password/${token}`;
 
+  // SECURITY: Never log reset tokens in production
   // In a real production setup, wire this up to an SMTP provider.
-  // For now, log the link on the server so it can be retrieved during testing.
-  console.info('Password reset link for', normalisedEmail, ':', resetUrl);
+  if (process.env.NODE_ENV === 'development') {
+    console.info('Password reset link for', normalisedEmail, ':', resetUrl);
+  } else {
+    // In production, send email via secure service (SendGrid, AWS SES, etc.)
+    // TODO: Implement email sending service
+    console.info('Password reset link generated for', normalisedEmail);
+  }
 
   // Optionally, you can integrate with an email service here using env-based SMTP config.
 

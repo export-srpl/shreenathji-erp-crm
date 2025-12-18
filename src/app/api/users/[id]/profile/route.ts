@@ -11,16 +11,21 @@ type Params = {
 export async function PATCH(req: Request, { params }: Params) {
   const auth = await getAuthContext(req);
   
-  // Users can only update their own profile, or admins can update any profile
-  if (!auth.userId || (auth.userId !== params.id && !isRoleAllowed(auth.role, ['admin']))) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // SECURITY: Strict authorization check - users can only update their own profile, or admins can update any
+  if (!auth.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (auth.userId !== params.id && !isRoleAllowed(auth.role, ['admin'])) {
+    return NextResponse.json({ error: 'Forbidden: You can only update your own profile' }, { status: 403 });
   }
 
   const prisma = await getPrismaClient();
   const body = await req.json();
-  const { name, password, avatarUrl } = body as {
+  const { name, password, currentPassword, avatarUrl } = body as {
     name?: string;
     password?: string;
+    currentPassword?: string;
     avatarUrl?: string;
   };
 
@@ -38,13 +43,36 @@ export async function PATCH(req: Request, { params }: Params) {
 
     if (name !== undefined) updateData.name = name || null;
     if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl || null;
+    
+    // SECURITY: Require current password verification for password changes
     if (password) {
       if (password.length < 8) {
         return NextResponse.json({ error: 'Password must be at least 8 characters long.' }, { status: 400 });
       }
-      // Note: In a real implementation, you'd verify the current password first.
-      // For now, we'll allow password change if the user is authenticated.
-      // You can add a 'currentPassword' field to verify it matches existing.passwordHash
+
+      // Require current password for non-admin users
+      if (!isRoleAllowed(auth.role, ['admin'])) {
+        if (!currentPassword) {
+          return NextResponse.json({ error: 'Current password is required to change password.' }, { status: 400 });
+        }
+
+        if (!existing.passwordHash) {
+          return NextResponse.json({ error: 'No password set for this account.' }, { status: 400 });
+        }
+
+        // Verify current password
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, existing.passwordHash);
+        if (!isCurrentPasswordValid) {
+          return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
+        }
+
+        // Prevent reusing the same password
+        const isSamePassword = await bcrypt.compare(password, existing.passwordHash);
+        if (isSamePassword) {
+          return NextResponse.json({ error: 'New password must be different from current password.' }, { status: 400 });
+        }
+      }
+
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 

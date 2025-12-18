@@ -152,7 +152,10 @@ export function DealsKanbanBoard() {
     const fetchDeals = async () => {
       try {
         const res = await fetch('/api/deals');
-        if (!res.ok) throw new Error('Failed to fetch deals');
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${res.status}: Failed to fetch deals`);
+        }
         const data = await res.json();
         setDeals(data);
       } catch (error) {
@@ -160,7 +163,7 @@ export function DealsKanbanBoard() {
         toast({
           variant: 'destructive',
           title: 'Failed to load deals',
-          description: 'Could not fetch deals from the server.',
+          description: error instanceof Error ? error.message : 'Could not fetch deals from the server.',
         });
       } finally {
         setIsLoading(false);

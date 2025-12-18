@@ -1,67 +1,111 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query } from "firebase/firestore";
-import type { DispatchRegisterEntry } from "@/types";
 import { Loader2 } from "lucide-react";
+import { useToast } from '@/hooks/use-toast';
+import { formatDateForExport } from '@/lib/export-utils';
+
+interface DispatchRegisterEntry {
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  poNo: string;
+  poDate: string | null;
+  totalOrderReceived: number;
+  totalDispatched: number;
+  totalPending: number;
+  salesPerson: string;
+}
 
 export default function DispatchRegisterPage() {
-  const firestore = useFirestore();
-  const { user, isUserLoading: isAuthLoading } = useUser();
+  const { toast } = useToast();
+  const [dispatchData, setDispatchData] = useState<DispatchRegisterEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const dispatchQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'dispatchRegister')) : null),
-    [firestore, user]
-  );
-  
-  const { data: dispatchData, isLoading: isDataLoading } = useCollection<DispatchRegisterEntry>(dispatchQuery);
-  
-  const isLoading = isAuthLoading || isDataLoading;
+  useEffect(() => {
+    const fetchDispatchData = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/dispatch-register');
+        if (!res.ok) {
+          throw new Error('Failed to fetch dispatch data');
+        }
+        const data = await res.json();
+        setDispatchData(data);
+      } catch (error) {
+        console.error('Failed to fetch dispatch register:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load dispatch register',
+          description: 'Could not fetch dispatch data from the server.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDispatchData();
+  }, [toast]);
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight font-headline">Dispatch Register</h1>
-        <p className="text-muted-foreground">Product-wise order, dispatched, and work-in-progress quantities.</p>
+        <p className="text-muted-foreground">Track order received, dispatched, and pending quantities by customer and product.</p>
       </div>
-      <Card>
+      <Card className="card-enhanced">
         <CardHeader>
-          <CardTitle>Dispatch Overview</CardTitle>
-          <CardDescription>Live status of all product dispatches.</CardDescription>
+          <CardTitle>Dispatch Register</CardTitle>
+          <CardDescription>
+            Total entries: {dispatchData.length} | Last updated: {new Date().toLocaleString()}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center items-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : !dispatchData || dispatchData.length === 0 ? (
+          ) : dispatchData.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
               <p>No dispatch data available.</p>
-              <p className="text-sm">Dispatch information will appear here as orders are processed.</p>
+              <p className="text-sm">Dispatch information will appear here as sales orders are created and invoices are generated.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead className="text-right">Order Qty (kg)</TableHead>
-                  <TableHead className="text-right">Dispatched Qty (kg)</TableHead>
-                  <TableHead className="text-right">WIP Qty (kg)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dispatchData.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell className="text-right">{item.orderQty.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{item.dispatchedQty.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{item.wipQty.toLocaleString()}</TableCell>
+            <div className="rounded-lg border overflow-hidden">
+              <Table className="table-enhanced">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer Name</TableHead>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>PO No</TableHead>
+                    <TableHead>PO Date</TableHead>
+                    <TableHead className="text-right">Total Order Received (MTS)</TableHead>
+                    <TableHead className="text-right">Total Dispatched (MTS)</TableHead>
+                    <TableHead className="text-right">Total Pending (MTS)</TableHead>
+                    <TableHead>Sales Person</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {dispatchData.map((item, index) => (
+                    <TableRow key={`${item.customerId}-${item.productId}-${index}`}>
+                      <TableCell className="font-medium">{item.customerName}</TableCell>
+                      <TableCell>{item.productName}</TableCell>
+                      <TableCell>{item.poNo || '-'}</TableCell>
+                      <TableCell>{item.poDate ? formatDateForExport(item.poDate) : '-'}</TableCell>
+                      <TableCell className="text-right">{Number(item.totalOrderReceived).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{Number(item.totalDispatched).toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {Number(item.totalPending).toFixed(2)}
+                      </TableCell>
+                      <TableCell>{item.salesPerson}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

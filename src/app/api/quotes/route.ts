@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/quotes - list quotes with customer and items
 export async function GET() {
+  // SECURITY: Require authentication
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   const prisma = await getPrismaClient();
   const quotes = await prisma.quote.findMany({
     include: { customer: true, items: { include: { product: true } } },

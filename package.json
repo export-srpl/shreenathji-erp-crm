@@ -10,7 +10,10 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "security:audit": "npm audit",
+    "security:audit:fix": "npm audit fix",
+    "security:check": "npm run security:audit"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.16.1",
@@ -39,6 +42,7 @@
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@types/pdfkit": "^0.17.4",
+    "@types/qrcode": "^1.5.6",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -50,9 +54,12 @@
     "firebase-admin": "^13.6.0",
     "framer-motion": "^12.23.26",
     "genkit": "^1.16.1",
+    "ioredis": "^5.8.2",
     "lucide-react": "^0.475.0",
     "next": "^15.5.9",
+    "otplib": "^12.0.1",
     "pdfkit": "^0.17.2",
+    "qrcode": "^1.5.4",
     "react": "18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "18.3.1",

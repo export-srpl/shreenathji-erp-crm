@@ -52,15 +52,17 @@ export function ImportProductsDialog({ open, onOpenChange, onProductsImported }:
         const lines = csvContent.split(/\r\n|\n/);
         const headers = lines[0].split(',').map(h => h.trim());
         
-        const nameIndex = headers.findIndex(h => h.toLowerCase() === 'productname' || h.toLowerCase() === 'product name');
-        const categoryIndex = headers.findIndex(h => h.toLowerCase() === 'category');
-        const hsnIndex = headers.findIndex(h => h.toLowerCase() === 'hsncode' || h.toLowerCase() === 'hsn code');
+        const lowerHeaders = headers.map(h => h.toLowerCase());
+        const nameIndex = lowerHeaders.findIndex(h => h === 'productname' || h === 'product name');
+        const categoryIndex = lowerHeaders.findIndex(h => h === 'category');
+        const hsnIndex = lowerHeaders.findIndex(h => h === 'hsncode' || h === 'hsn code');
+        const skuIndex = lowerHeaders.findIndex(h => h === 'sku');
 
         if (nameIndex === -1 || categoryIndex === -1 || hsnIndex === -1) {
             toast({
                 variant: 'destructive',
                 title: 'Invalid CSV Format',
-                description: 'File must contain "productName", "category", and "hsnCode" columns.',
+                description: 'File must contain "productName", "category", and "hsnCode" columns. Optional "SKU" column is also supported.',
             });
             return;
         }
@@ -72,9 +74,10 @@ export function ImportProductsDialog({ open, onOpenChange, onProductsImported }:
             const productName = data[nameIndex].trim();
             const category = data[categoryIndex].trim();
             const hsnCode = data[hsnIndex].trim();
+            const sku = skuIndex !== -1 ? data[skuIndex].trim() : '';
             
             if (productName && category && hsnCode) {
-               importedProducts.push({ productName, category, hsnCode });
+               importedProducts.push({ productName, category, hsnCode, sku });
             }
           }
         }

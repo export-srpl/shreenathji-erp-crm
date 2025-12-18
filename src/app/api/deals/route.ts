@@ -1,23 +1,54 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-utils';
 
 // GET /api/deals - list all deals
 export async function GET() {
-  const prisma = await getPrismaClient();
-  const deals = await prisma.deal.findMany({
-    include: {
-      customer: true,
-      items: {
-        include: {
-          product: true,
+  // SECURITY: Require authentication
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  try {
+    const prisma = await getPrismaClient();
+    const deals = await prisma.deal.findMany({
+      select: {
+        id: true,
+        title: true,
+        stage: true,
+        createdAt: true,
+        updatedAt: true,
+        customer: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(deals);
+    return NextResponse.json(deals);
+  } catch (error) {
+    console.error('Failed to fetch deals:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch deals', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
 }
 
 // POST /api/deals - create a new deal

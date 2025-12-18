@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { userAdminUpdateSchema, validateInput } from '@/lib/validation';
 
 type Params = {
   params: { id: string };
@@ -39,13 +40,20 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const prisma = await getPrismaClient();
-  const body = await req.json();
-  const { name, email, role, password } = body as {
-    name?: string;
-    email?: string;
-    role?: string;
-    password?: string;
-  };
+  const rawBody = await req.json();
+
+  const validation = validateInput(userAdminUpdateSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
+      },
+      { status: 400 },
+    );
+  }
+
+  const { name, email, role, password } = validation.data;
 
   try {
     const existing = await prisma.user.findUnique({ where: { id: params.id } });
@@ -81,7 +89,8 @@ export async function PATCH(req: Request, { params }: Params) {
     if (name !== undefined) updateData.name = name || null;
     if (email !== undefined) updateData.email = email.trim().toLowerCase();
     if (role !== undefined) {
-      updateData.role = role === 'Admin' ? 'admin' : (role === 'Sales' ? 'sales' : (role === 'Finance' ? 'finance' : 'user'));
+      updateData.role =
+        role === 'Admin' ? 'admin' : role === 'Sales' ? 'sales' : role === 'Finance' ? 'finance' : 'user';
     }
     if (password) {
       const bcrypt = await import('bcryptjs');
@@ -109,7 +118,7 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 // DELETE /api/users/[id] - Delete a user
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
   const auth = await getAuthContext(req);
   if (!auth.userId || !isRoleAllowed(auth.role, ['admin'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

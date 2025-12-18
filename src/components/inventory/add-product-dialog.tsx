@@ -27,6 +27,7 @@ type AddProductDialogProps = {
 export function AddProductDialog({ open, onOpenChange, onProductAction, productToEdit }: AddProductDialogProps) {
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState('');
+  const [sku, setSku] = useState('');
   const [hsnCode, setHsnCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,10 +38,12 @@ export function AddProductDialog({ open, onOpenChange, onProductAction, productT
         if (isEditMode && productToEdit) {
           setProductName(productToEdit.productName);
           setCategory(productToEdit.category);
-          setHsnCode(productToEdit.hsnCode);
+          setSku(productToEdit.sku || '');
+          setHsnCode(productToEdit.hsnCode || '');
         } else {
           setProductName('');
           setCategory('');
+          setSku('');
           setHsnCode('');
         }
     }
@@ -53,9 +56,9 @@ export function AddProductDialog({ open, onOpenChange, onProductAction, productT
     
     let productData: Product | Omit<Product, 'id'>;
     if (isEditMode && productToEdit) {
-      productData = { ...productToEdit, productName, category, hsnCode };
+      productData = { ...productToEdit, productName, category, sku, hsnCode };
     } else {
-      productData = { productName, category, hsnCode };
+      productData = { productName, category, sku, hsnCode };
     }
 
     await onProductAction(productData);
@@ -102,6 +105,18 @@ export function AddProductDialog({ open, onOpenChange, onProductAction, productT
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="sku" className="text-right">
+                SKU
+              </Label>
+              <Input
+                id="sku"
+                placeholder="e.g. INTERNAL-001"
+                className="col-span-3"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { dealUpdateSchema, validateInput } from '@/lib/validation';
 
 type Params = {
   params: { id: string };
@@ -36,13 +37,20 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const prisma = await getPrismaClient();
-  const body = await req.json();
-  const { title, stage, customerId, items } = body as {
-    title?: string;
-    stage?: string;
-    customerId?: string;
-    items?: Array<{ productId: string; quantity: number }>;
-  };
+  const rawBody = await req.json();
+
+  const validation = validateInput(dealUpdateSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
+      },
+      { status: 400 },
+    );
+  }
+
+  const { title, stage, customerId, items } = validation.data;
 
   try {
     const updateData: any = {};
@@ -82,7 +90,7 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 // DELETE /api/deals/[id] - delete a deal
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
   const auth = await getAuthContext(req);
   if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
