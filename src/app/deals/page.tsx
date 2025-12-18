@@ -12,13 +12,9 @@ export default function DealsPage() {
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleAddDeal = (deal: Omit<Deal, 'id' | 'contact'>) => {
-    // This is a placeholder for a secure backend call.
-    console.log('Calling backend to create deal:', deal);
-    toast({
-      title: 'Deal Queued',
-      description: `The deal "${deal.title}" is being created.`,
-    });
+  const handleAddDeal = () => {
+    // Refresh the kanban board
+    window.location.reload();
   };
 
   return (

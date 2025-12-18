@@ -40,6 +40,7 @@ model Customer {
   customerType     String
   country          String
   state            String?
+  city             String?
   gstNo            String?
   billingAddress   String?
   shippingAddress  String?
@@ -53,6 +54,7 @@ model Customer {
   proformaInvoices ProformaInvoice[]
   quotes           Quote[]
   salesOrders      SalesOrder[]
+  deals            Deal[]
 }
 
 model Lead {
@@ -81,6 +83,26 @@ model Lead {
   quotes              Quote[]
 }
 
+model Deal {
+  id          String   @id @default(cuid())
+  title       String
+  stage       String   @default("Prospecting")
+  customerId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id])
+  items       DealItem[]
+}
+
+model DealItem {
+  id          String  @id @default(cuid())
+  productId   String
+  quantity    Decimal @db.Decimal(12, 2)
+  dealId      String
+  product     Product @relation(fields: [productId], references: [id])
+  deal        Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+}
+
 model Product {
   id              String           @id @default(cuid())
   name            String
@@ -95,6 +117,7 @@ model Product {
   proformaItems   ProformaItem[]
   quoteItems      QuoteItem[]
   salesOrderItems SalesOrderItem[]
+  dealItems       DealItem[]
 }
 
 model Quote {

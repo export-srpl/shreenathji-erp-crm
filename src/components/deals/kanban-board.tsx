@@ -1,10 +1,8 @@
 'use client';
 
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, doc, updateDoc } from 'firebase/firestore';
-import type { Deal, DealStage } from '@/types';
+import { useState, useEffect } from 'react';
+import type { DealStage } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, MoreVertical } from 'lucide-react';
 import {
@@ -27,6 +25,25 @@ const stages: DealStage[] = [
   'Lost',
 ];
 
+type Deal = {
+  id: string;
+  title: string;
+  stage: string;
+  customer: {
+    id: string;
+    companyName: string;
+  };
+  items: Array<{
+    id: string;
+    productId: string;
+    quantity: number;
+    product: {
+      id: string;
+      name: string;
+    };
+  }>;
+};
+
 const DealCard = ({
   deal,
   onStageChange,
@@ -34,6 +51,8 @@ const DealCard = ({
   deal: Deal;
   onStageChange: (dealId: string, newStage: DealStage) => void;
 }) => {
+  const totalQuantity = deal.items.reduce((sum, item) => sum + Number(item.quantity), 0);
+
   return (
     <Card className="mb-4 bg-card hover:shadow-md transition-shadow duration-200">
       <CardContent className="p-4 space-y-3">
@@ -64,28 +83,20 @@ const DealCard = ({
           </DropdownMenu>
         </div>
 
-        <p className="text-sm text-muted-foreground -mt-2">{deal.company}</p>
+        <p className="text-sm text-muted-foreground -mt-2">{deal.customer.companyName}</p>
+
+        <div className="space-y-1">
+          {deal.items.map((item, idx) => (
+            <div key={idx} className="text-xs text-muted-foreground">
+              {item.product.name}: {Number(item.quantity).toFixed(2)} MTS
+            </div>
+          ))}
+        </div>
 
         <div className="flex justify-between items-center pt-2">
-          <span className="text-lg font-bold text-primary">
-            {new Intl.NumberFormat('en-IN', {
-              style: 'currency',
-              currency: 'INR',
-              notation: 'compact',
-            }).format(deal.value)}
+          <span className="text-sm font-semibold text-primary">
+            Total: {totalQuantity.toFixed(2)} MTS
           </span>
-          <div className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage
-                src={deal.contact.avatarUrl}
-                alt={deal.contact.name}
-                data-ai-hint="person portrait"
-              />
-              <AvatarFallback>
-                {deal.contact.name.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </div>
         </div>
       </CardContent>
     </Card>
@@ -133,41 +144,60 @@ const KanbanColumn = ({
 };
 
 export function DealsKanbanBoard() {
-  const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const dealsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'deals'));
-  }, [firestore, user]);
+  useEffect(() => {
+    const fetchDeals = async () => {
+      try {
+        const res = await fetch('/api/deals');
+        if (!res.ok) throw new Error('Failed to fetch deals');
+        const data = await res.json();
+        setDeals(data);
+      } catch (error) {
+        console.error('Failed to fetch deals:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load deals',
+          description: 'Could not fetch deals from the server.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const { data: deals, isLoading: areDealsLoading } = useCollection<Deal>(dealsQuery);
+    fetchDeals();
+  }, [toast]);
 
   const handleStageChange = async (dealId: string, newStage: DealStage) => {
-    if (!firestore) return;
-    
-    // This is a placeholder for a secure backend call.
-    console.log(`Calling backend to update deal ${dealId} to stage ${newStage}`);
-    
-    const dealRef = doc(firestore, 'deals', dealId);
     try {
-        await updateDoc(dealRef, { stage: newStage });
-        toast({
-            title: 'Deal Updated',
-            description: `Deal moved to "${newStage}".`,
-        });
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: newStage }),
+      });
+
+      if (!res.ok) throw new Error('Failed to update deal');
+
+      // Update local state
+      setDeals((prev) =>
+        prev.map((deal) => (deal.id === dealId ? { ...deal, stage: newStage } : deal))
+      );
+
+      toast({
+        title: 'Deal Updated',
+        description: `Deal moved to "${newStage}".`,
+      });
     } catch (error) {
-        console.error("Error updating deal stage: ", error);
-        toast({
-            variant: 'destructive',
-            title: 'Update Failed',
-            description: 'Could not update deal stage.',
-        });
+      console.error('Error updating deal stage:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: 'Could not update deal stage.',
+      });
     }
   };
-
-  const isLoading = isUserLoading || areDealsLoading;
 
   if (isLoading) {
     return (
@@ -183,7 +213,7 @@ export function DealsKanbanBoard() {
         <KanbanColumn
           key={stage}
           stage={stage}
-          deals={deals?.filter((deal) => deal.stage === stage) || []}
+          deals={deals.filter((deal) => deal.stage === stage)}
           onStageChange={handleStageChange}
         />
       ))}

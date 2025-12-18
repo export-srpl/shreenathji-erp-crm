@@ -203,13 +203,16 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
     
     if (customerToLoad) {
       setSelectedCustomer(customerToLoad);
-      const [line1, city, stateZip, country] = (customerToLoad.billingAddress || '').split('\\n');
+      
+      // Use city from customer if available, otherwise parse from address
+      const customerCity = (customerToLoad as any).city || '';
+      const [line1, parsedCity, stateZip, country] = (customerToLoad.billingAddress || '').split('\\n');
       const [state, postalCode] = (stateZip || '').split(' ');
       const newBillTo = {
         companyName: customerToLoad.companyName || '',
-        addressLine1: line1 || '',
+        addressLine1: line1 || customerToLoad.billingAddress || '',
         addressLine2: '',
-        city: city || '',
+        city: customerCity || parsedCity || '',
         state: state || customerToLoad.state || '',
         postalCode: postalCode || '',
         country: customerToLoad.country || '',
@@ -219,18 +222,23 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       if (sameAsBillTo) {
         setShipTo(newBillTo);
       } else {
-        const [s_line1, s_city, s_stateZip, s_country] = (customerToLoad.shippingAddress || '').split('\\n');
+        const [s_line1, s_parsedCity, s_stateZip, s_country] = (customerToLoad.shippingAddress || '').split('\\n');
         const [s_state, s_postalCode] = (s_stateZip || '').split(' ');
         const newShipTo = {
             companyName: customerToLoad.companyName || '',
-            addressLine1: s_line1 || '',
+            addressLine1: s_line1 || customerToLoad.shippingAddress || '',
             addressLine2: '',
-            city: s_city || '',
+            city: customerCity || s_parsedCity || '',
             state: s_state || customerToLoad.state || '',
             postalCode: s_postalCode || '',
             country: customerToLoad.country || '',
         };
         setShipTo(newShipTo);
+      }
+      
+      // Set sales person if available
+      if ((customerToLoad as any).salesPerson) {
+        setSalesPerson((customerToLoad as any).salesPerson);
       }
     }
     
@@ -279,14 +287,16 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
     setSelectedCustomer(customer || null);
     
     if (customer) {
-        const [line1, city, stateZip, country] = (customer.billingAddress || '').split('\\n');
+        // Use city from customer if available, otherwise parse from address
+        const customerCity = (customer as any).city || '';
+        const [line1, parsedCity, stateZip, country] = (customer.billingAddress || '').split('\\n');
         const [state, postalCode] = (stateZip || '').split(' ');
         
         const newBillTo = {
             companyName: customer.companyName,
-            addressLine1: line1 || '',
+            addressLine1: line1 || customer.billingAddress || '',
             addressLine2: '',
-            city: city || '',
+            city: customerCity || parsedCity || '',
             state: state || customer.state || '',
             postalCode: postalCode || '',
             country: customer.country,
@@ -295,13 +305,13 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
         if (sameAsBillTo) {
             setShipTo(newBillTo);
         } else {
-             const [s_line1, s_city, s_stateZip, s_country] = (customer.shippingAddress || '').split('\\n');
-             const [s_state, s_postalCode] = (s_zip || '').split(' ');
+             const [s_line1, s_parsedCity, s_stateZip, s_country] = (customer.shippingAddress || '').split('\\n');
+             const [s_state, s_postalCode] = (s_stateZip || '').split(' ');
              const newShipTo = {
                 companyName: customer.companyName,
-                addressLine1: s_line1 || '',
+                addressLine1: s_line1 || customer.shippingAddress || '',
                 addressLine2: '',
-                city: s_city || '',
+                city: customerCity || s_parsedCity || '',
                 state: s_state || customer.state || '',
                 postalCode: s_postalCode || '',
                 country: customer.country,

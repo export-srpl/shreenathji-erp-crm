@@ -14,6 +14,7 @@ type Lead = {
   companyName: string;
   country: string;
   state?: string;
+  city?: string;
   gstNo?: string;
   billingAddress?: string;
   shippingAddress?: string;
@@ -21,6 +22,7 @@ type Lead = {
   email: string;
   phone: string;
   status?: string;
+  assignedSalesperson?: string;
   contactPerson?: {
     designation?: string;
   };
@@ -73,6 +75,7 @@ export default function CreateQuotePage() {
       customerType: selectedLead.country === 'India' ? 'domestic' : 'international',
       country: selectedLead.country,
       state: selectedLead.state,
+      city: selectedLead.city,
       gstNo: selectedLead.gstNo,
       billingAddress: selectedLead.billingAddress || '',
       shippingAddress: selectedLead.shippingAddress || '',
@@ -81,7 +84,8 @@ export default function CreateQuotePage() {
         email: selectedLead.email,
         phone: selectedLead.phone,
         designation: selectedLead.contactPerson?.designation || '',
-      }
+      },
+      salesPerson: selectedLead.assignedSalesperson || '',
     };
   }, [selectedLead]);
 

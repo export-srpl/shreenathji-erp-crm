@@ -60,13 +60,15 @@ function LeadForm() {
           phone: lead.phone ?? '',
           country: lead.country ?? '',
           state: lead.state ?? '',
+          city: lead.city ?? '',
+          billingAddress: lead.billingAddress ?? '',
           industry: '',
           productInterest: lead.productInterest ?? '',
-          application: '',
-          monthlyRequirement: '',
+          application: lead.application ?? '',
+          monthlyRequirement: lead.monthlyRequirement ?? '',
           assignedSalesperson: lead.assignedSalesperson ?? '',
           leadStatus: lead.status ?? 'New',
-          followUpDate: '',
+          followUpDate: lead.followUpDate ? new Date(lead.followUpDate).toISOString().split('T')[0] : '',
           contactMethod: '',
           notes: lead.notes ?? '',
         });
@@ -92,60 +94,62 @@ function LeadForm() {
     event.preventDefault();
     setIsSaving(true);
     const formData = new FormData(event.currentTarget);
-    const leadData = {
-      leadSource: formData.get('leadSource') as string,
-      companyName: formData.get('companyName') as string,
-      website: formData.get('website') as string,
-      gstNo: formData.get('gstNo') as string,
-      contactName: formData.get('contactName') as string,
-      designation: formData.get('designation') as string,
-      email: formData.get('email') as string,
-      phone: formData.get('phone') as string,
-      country: formData.get('country') as string,
-      state: formData.get('state') as string,
-      industry: formData.get('industry') as string,
-      productInterest: formData.get('productInterest') as string,
-      application: formData.get('application') as string,
-      monthlyRequirement: formData.get('monthlyRequirement') as string,
-      assignedSalesperson: assignedSalesperson,
-      leadStatus: formData.get('leadStatus') as string,
-      followUpDate: formData.get('followUpDate') as string,
-      contactMethod: formData.get('contactMethod') as string,
-      notes: formData.get('notes') as string,
-      createdAt: new Date().toISOString(),
-    };
-
+    const isEdit = !!leadId;
+    
     try {
-      const isEdit = !!leadId;
       const url = isEdit ? `/api/leads/${leadId}` : '/api/leads';
       const method = isEdit ? 'PATCH' : 'POST';
+
+      let requestBody: any;
+      
+      if (isEdit) {
+        // When editing, only send updatable fields
+        requestBody = {
+          status: formData.get('leadStatus') as string,
+          followUpDate: formData.get('followUpDate') as string || null,
+          productInterest: formData.get('productInterest') as string,
+          application: formData.get('application') as string,
+          monthlyRequirement: formData.get('monthlyRequirement') as string,
+        };
+      } else {
+        // When creating, send all fields
+        requestBody = {
+          leadSource: formData.get('leadSource') as string,
+          companyName: formData.get('companyName') as string,
+          website: formData.get('website') as string,
+          gstNo: formData.get('gstNo') as string,
+          contactName: formData.get('contactName') as string,
+          designation: formData.get('designation') as string,
+          email: formData.get('email') as string,
+          phone: formData.get('phone') as string,
+          country: formData.get('country') as string,
+          state: formData.get('state') as string,
+          city: formData.get('city') as string,
+          billingAddress: formData.get('billingAddress') as string,
+          productInterest: formData.get('productInterest') as string,
+          application: formData.get('application') as string,
+          monthlyRequirement: formData.get('monthlyRequirement') as string,
+          assignedSalesperson: assignedSalesperson,
+          status: formData.get('leadStatus') as string,
+          followUpDate: formData.get('followUpDate') as string || null,
+          notes: formData.get('notes') as string,
+        };
+      }
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadSource: leadData.leadSource,
-          companyName: leadData.companyName,
-          gstNo: leadData.gstNo,
-          contactName: leadData.contactName,
-          email: leadData.email,
-          phone: leadData.phone,
-          country: leadData.country,
-          state: leadData.state,
-          productInterest: leadData.productInterest,
-          assignedSalesperson: leadData.assignedSalesperson,
-          status: leadData.leadStatus,
-          notes: leadData.notes,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
         throw new Error(isEdit ? 'Failed to update lead' : 'Failed to create lead');
       }
 
+      const leadData = await res.json();
       toast({
         title: isEdit ? 'Lead Updated' : 'Lead Added',
-        description: `"${leadData.companyName}" has been ${isEdit ? 'updated' : 'created'} successfully.`,
+        description: `"${leadData.companyName || 'Lead'}" has been ${isEdit ? 'updated' : 'created'} successfully.`,
       });
 
       router.push('/sales/leads');
@@ -185,7 +189,7 @@ function LeadForm() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label htmlFor="leadSource">Lead Source</Label>
-                  <Select name="leadSource" required defaultValue={initialValues?.leadSource}>
+                  <Select name="leadSource" required defaultValue={initialValues?.leadSource} disabled={!!leadId}>
                     <SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger>
                     <SelectContent>
                       {leadSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -200,6 +204,7 @@ function LeadForm() {
                     placeholder="e.g. Acme Corporation"
                     required
                     defaultValue={initialValues?.companyName}
+                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -210,6 +215,7 @@ function LeadForm() {
                     type="url"
                     placeholder="e.g. https://acme.com"
                     defaultValue={initialValues?.website}
+                    disabled={!!leadId}
                   />
                 </div>
               </div>
@@ -229,6 +235,7 @@ function LeadForm() {
                     placeholder="e.g. Jane Doe"
                     required
                     defaultValue={initialValues?.contactName}
+                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -238,6 +245,7 @@ function LeadForm() {
                     name="designation"
                     placeholder="e.g. Purchase Manager"
                     defaultValue={initialValues?.designation}
+                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -249,6 +257,7 @@ function LeadForm() {
                     placeholder="e.g. jane.doe@acme.com"
                     required
                     defaultValue={initialValues?.email}
+                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -260,6 +269,7 @@ function LeadForm() {
                     placeholder="e.g. +91 123 456 7890"
                     required
                     defaultValue={initialValues?.phone}
+                    disabled={!!leadId}
                   />
                 </div>
               </div>
@@ -270,20 +280,26 @@ function LeadForm() {
             {/* Location */}
             <div className="space-y-4">
                 <h3 className="text-lg font-medium">Location</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                        <Label htmlFor="billingAddress">Company Address</Label>
+                        <Input
+                          id="billingAddress"
+                          name="billingAddress"
+                          placeholder="e.g. 123 Main Street, Industrial Area"
+                          defaultValue={initialValues?.billingAddress}
+                          disabled={!!leadId}
+                        />
+                    </div>
                     <div>
-                        <Label htmlFor="country">Country</Label>
-                        <Select
-                          name="country"
-                          required
-                          onValueChange={setSelectedCountry}
-                          value={selectedCountry || initialValues?.country || undefined}
-                        >
-                            <SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger>
-                            <SelectContent>
-                                {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          name="city"
+                          placeholder="e.g. Ahmedabad"
+                          defaultValue={initialValues?.city}
+                          disabled={!!leadId}
+                        />
                     </div>
                     <div>
                         <Label htmlFor="state">State</Label>
@@ -293,7 +309,23 @@ function LeadForm() {
                           placeholder="e.g. Gujarat"
                           required
                           defaultValue={initialValues?.state}
+                          disabled={!!leadId}
                         />
+                    </div>
+                    <div>
+                        <Label htmlFor="country">Country</Label>
+                        <Select
+                          name="country"
+                          required
+                          onValueChange={setSelectedCountry}
+                          value={selectedCountry || initialValues?.country || undefined}
+                          disabled={!!leadId}
+                        >
+                            <SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger>
+                            <SelectContent>
+                                {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
                     </div>
                     {selectedCountry === 'India' && (
                         <div>
@@ -303,6 +335,7 @@ function LeadForm() {
                               name="gstNo"
                               placeholder="e.g. 24AAABC1234D1Z2"
                               defaultValue={initialValues?.gstNo}
+                              disabled={!!leadId}
                             />
                         </div>
                     )}
@@ -322,6 +355,7 @@ function LeadForm() {
                     name="industry"
                     placeholder="e.g. Pharmaceuticals"
                     defaultValue={initialValues?.industry}
+                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -347,7 +381,7 @@ function LeadForm() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="monthlyRequirement">Approx. Monthly Requirement (MT)</Label>
+                  <Label htmlFor="monthlyRequirement">Approx. Monthly Requirement (MTS)</Label>
                   <Input
                     id="monthlyRequirement"
                     name="monthlyRequirement"
