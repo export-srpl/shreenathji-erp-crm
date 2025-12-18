@@ -53,6 +53,7 @@ const navItems = [
     items: [
       { href: '/customers', label: 'All Customers' },
       { href: '/customers/add', label: 'Add Customer' },
+      { href: '/contacts', label: 'Contacts' },
     ],
   },
     {

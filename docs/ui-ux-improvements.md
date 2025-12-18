@@ -114,7 +114,7 @@ After reviewing the current application against modern CRM design standards (Nex
 
 ## 4. **Contacts Dashboard - Grid View**
 
-**Reference:** https://crms.dreamstechnologies.com/react/template/crm/contact-grid
+**Reference:** https://crms.dreamstechnologies.com/react/template/crm/contact-list
 
 ### Recommended Contact Card:
 ```
