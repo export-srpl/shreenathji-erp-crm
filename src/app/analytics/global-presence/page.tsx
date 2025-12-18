@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Globe } from 'lucide-react';
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { useToast } from '@/hooks/use-toast';
 
 // Simple world map geo URL
@@ -167,40 +167,45 @@ export default function GlobalPresencePage() {
           <CardDescription>Click on a country to view details</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="relative h-[600px] w-full rounded-lg overflow-hidden border">
-            <ComposableMap projectionConfig={{ scale: 147 }}>
-              <ZoomableGroup>
-                <Geographies geography={geoUrl}>
-                  {({ geographies }) =>
-                    geographies.map((geo) => {
-                      const countryName = geo.properties.NAME || geo.properties.NAME_LONG;
-                      const fillColor = getFillColor(countryName);
-                      const isSelected = selectedCountry === countryName;
-                      
-                      return (
-                        <Geography
-                          key={geo.rsmKey}
-                          geography={geo}
-                          fill={fillColor}
-                          stroke={isSelected ? '#EF4444' : '#FFFFFF'}
-                          strokeWidth={isSelected ? 2 : 0.5}
-                          style={{
-                            default: { outline: 'none' },
-                            hover: {
-                              fill: '#F59E0B',
-                              outline: 'none',
-                              cursor: 'pointer',
-                            },
-                            pressed: { outline: 'none' },
-                          }}
-                          onClick={() => setSelectedCountry(countryName)}
-                        />
-                      );
-                    })
-                  }
-                </Geographies>
-              </ZoomableGroup>
-            </ComposableMap>
+          <div className="relative h-[600px] w-full rounded-lg overflow-hidden border bg-muted/20">
+            {typeof window !== 'undefined' && (
+              <ComposableMap 
+                projectionConfig={{ scale: 147 }}
+                className="w-full h-full"
+              >
+                <ZoomableGroup>
+                  <Geographies geography={geoUrl}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => {
+                        const countryName = geo.properties.NAME || geo.properties.NAME_LONG || geo.properties.NAME_EN;
+                        const fillColor = getFillColor(countryName);
+                        const isSelected = selectedCountry === countryName;
+                        
+                        return (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            fill={fillColor}
+                            stroke={isSelected ? '#EF4444' : '#FFFFFF'}
+                            strokeWidth={isSelected ? 2 : 0.5}
+                            style={{
+                              default: { outline: 'none' },
+                              hover: {
+                                fill: '#F59E0B',
+                                outline: 'none',
+                                cursor: 'pointer',
+                              },
+                              pressed: { outline: 'none' },
+                            }}
+                            onClick={() => setSelectedCountry(countryName)}
+                          />
+                        );
+                      })
+                    }
+                  </Geographies>
+                </ZoomableGroup>
+              </ComposableMap>
+            )}
           </div>
 
           {selectedData && (

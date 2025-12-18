@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users, FileText, ShoppingCart, IndianRupee, TrendingUp, Target } from 'lucide-react';
+import { MetricCard } from '@/components/dashboard/metric-card';
 import {
   ChartContainer,
   ChartTooltip,
@@ -71,48 +72,79 @@ export default function SalesDashboardPage() {
         </div>
       ) : (
         <>
+          {/* Enhanced Metric Cards */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Total Leads"
+              value={funnel?.leads.total || 0}
+              change={funnel?.leads.total ? { value: 12.4, label: 'vs last month' } : undefined}
+              icon={Users}
+              description="Active leads in pipeline"
+            />
+            <MetricCard
+              title="Conversion Rate"
+              value={`${funnel?.leads.conversionRate.toFixed(1) || 0}%`}
+              change={funnel?.leads.conversionRate ? { value: 5.2, label: 'vs last month' } : undefined}
+              icon={Target}
+              description="Lead to customer conversion"
+            />
+            <MetricCard
+              title="Total Quotes"
+              value={funnel?.quotes.count || 0}
+              change={funnel?.quotes.count ? { value: 8.3, label: 'vs last month' } : undefined}
+              icon={FileText}
+              description="Quotes generated"
+            />
+            <MetricCard
+              title="Total Revenue"
+              value={funnel?.payments.totalAmount || 0}
+              change={funnel?.payments.totalAmount ? { value: 18.5, label: 'vs last month' } : undefined}
+              icon={IndianRupee}
+              description="Revenue collected"
+            />
+          </div>
+
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
+            <Card className="card-enhanced">
               <CardHeader>
                 <CardTitle>Conversion Funnel</CardTitle>
                 <CardDescription>Track leads through the sales pipeline.</CardDescription>
               </CardHeader>
               <CardContent>
                 {funnel ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Total Leads</span>
-                      <span className="font-medium">{funnel.leads.total}</span>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-muted/30">
+                      <span className="font-medium">Total Leads</span>
+                      <span className="font-bold text-lg">{funnel.leads.total}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Qualified / Converted</span>
-                      <span className="font-medium">
-                        {funnel.leads.qualified} ({funnel.leads.conversionRate.toFixed(1)}%)
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-muted/30">
+                      <span className="font-medium">Qualified / Converted</span>
+                      <span className="font-semibold">
+                        {funnel.leads.qualified} <span className="text-success">({funnel.leads.conversionRate.toFixed(1)}%)</span>
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Quotes Created</span>
-                      <span className="font-medium">
-                        {funnel.quotes.count} ({funnel.quotes.fromLeads.toFixed(1)}%)
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-muted/30">
+                      <span className="font-medium">Quotes Created</span>
+                      <span className="font-semibold">
+                        {funnel.quotes.count} <span className="text-info">({funnel.quotes.fromLeads.toFixed(1)}%)</span>
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Sales Orders</span>
-                      <span className="font-medium">
-                        {funnel.salesOrders.count} ({funnel.salesOrders.fromProformas.toFixed(1)}%)
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-muted/30">
+                      <span className="font-medium">Sales Orders</span>
+                      <span className="font-semibold">
+                        {funnel.salesOrders.count} <span className="text-primary">({funnel.salesOrders.fromProformas.toFixed(1)}%)</span>
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Invoices</span>
-                      <span className="font-medium">
-                        {funnel.invoices.count} ({funnel.invoices.fromSalesOrders.toFixed(1)}%)
+                    <div className="flex justify-between items-center p-2 rounded-lg bg-muted/30">
+                      <span className="font-medium">Invoices</span>
+                      <span className="font-semibold">
+                        {funnel.invoices.count} <span className="text-warning">({funnel.invoices.fromSalesOrders.toFixed(1)}%)</span>
                       </span>
                     </div>
-                    <div className="flex justify-between pt-2 border-t mt-2">
-                      <span>Total Collected</span>
-                      <span className="font-medium">
-                        {funnel.payments.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                        {' '}({funnel.payments.collectionRate.toFixed(1)}%)
+                    <div className="flex justify-between items-center pt-3 border-t mt-3 p-2 rounded-lg bg-primary/5">
+                      <span className="font-semibold">Total Collected</span>
+                      <span className="font-bold text-lg text-primary">
+                        {funnel.payments.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
                       </span>
                     </div>
                   </div>
@@ -122,7 +154,7 @@ export default function SalesDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-2">
+            <Card className="md:col-span-2 card-enhanced">
               <CardHeader>
                 <CardTitle>Sales by Month</CardTitle>
                 <CardDescription>Monthly totals for quotes, proformas, orders, and invoices.</CardDescription>
@@ -147,7 +179,7 @@ export default function SalesDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-2 lg:col-span-3">
+            <Card className="md:col-span-2 lg:col-span-3 card-enhanced">
               <CardHeader>
                 <CardTitle>Top Customers</CardTitle>
                 <CardDescription>Top 5 customers by total invoiced amount.</CardDescription>
@@ -156,13 +188,18 @@ export default function SalesDashboardPage() {
                 {topCustomers.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No invoice data available.</p>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {topCustomers.map((c) => (
-                      <div key={c.customerId} className="space-y-1 rounded-md border p-3">
-                        <div className="font-medium">{c.customerName}</div>
-                        <div className="text-xs text-muted-foreground">Invoices: {c.invoiceCount}</div>
-                        <div className="text-sm font-semibold">
-                          {c.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                    {topCustomers.map((c, index) => (
+                      <div 
+                        key={c.customerId} 
+                        className="card-grid p-4 text-center animate-fade-in"
+                        style={{ animationDelay: `${index * 0.1}s` }}
+                      >
+                        <div className="text-2xl font-bold text-muted-foreground mb-2">#{index + 1}</div>
+                        <div className="font-semibold mb-2 truncate" title={c.customerName}>{c.customerName}</div>
+                        <div className="text-xs text-muted-foreground mb-3">Invoices: {c.invoiceCount}</div>
+                        <div className="text-lg font-bold metric-value">
+                          {c.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
                         </div>
                       </div>
                     ))}

@@ -90,6 +90,7 @@ const navItems = [
     items: [
       { href: '/reports', label: 'Standard Reports' },
       { href: '/reports/customer-orders', label: 'Customer Orders' },
+      { href: '/analytics/global-presence', label: 'Global Presence' },
     ],
   },
   { href: '/documents', label: 'Documents', icon: Folder },
