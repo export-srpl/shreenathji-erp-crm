@@ -4,9 +4,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Mail, Loader2, ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Mail, Loader2, ChevronLeft, ChevronRight, Upload, Grid3x3, List } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CustomersGrid } from "@/components/customers/customers-grid";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,7 @@ export default function CustomersPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pagination, setPagination] = useState<{ page: number }>({ page: 0 });
   const [isImportDialogOpen, setImportDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -51,6 +53,7 @@ export default function CustomersPage() {
           shippingAddress: c.shippingAddress ?? '',
           country: c.country ?? '',
           state: c.state ?? undefined,
+          city: (c as any).city ?? undefined,
           cityState: c.cityState ?? undefined,
           gstNo: c.gstNo ?? undefined,
           contactPerson: {
@@ -170,8 +173,28 @@ export default function CustomersPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>All Customers</CardTitle>
-          <CardDescription>Browse, search, and manage your customers.</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Customers</CardTitle>
+              <CardDescription>Browse, search, and manage your customers.</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                size="icon"
+                onClick={() => setViewMode('grid')}
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'outline'}
+                size="icon"
+                onClick={() => setViewMode('table')}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -183,9 +206,14 @@ export default function CustomersPage() {
               <p>No customers have been added yet.</p>
               <p className="text-sm">Click "Add New Customer" to get started.</p>
             </div>
+          ) : viewMode === 'grid' ? (
+            <CustomersGrid 
+              customers={customers} 
+              onDelete={(id) => setCustomers(prev => prev.filter(c => c.id !== id))}
+            />
           ) : (
             <>
-            <Table>
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Company Name</TableHead>
