@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ const FIELD_TYPES = [
   { value: 'checkbox', label: 'Checkbox' },
 ];
 
-export default function FormBuilderPage() {
+function FormBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const formId = searchParams.get('id');
@@ -395,6 +395,18 @@ export default function FormBuilderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FormBuilderPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <p>Loading...</p>
+      </div>
+    }>
+      <FormBuilderContent />
+    </Suspense>
   );
 }
 
