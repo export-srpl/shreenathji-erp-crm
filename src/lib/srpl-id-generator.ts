@@ -41,13 +41,16 @@ export async function generateSRPLId(
   const { moduleCode, prisma, year, financialYear } = options;
 
   // Get or create sequence configuration
-  let config = await prisma.sequenceConfig.findUnique({
+  // Cast to any to access extended Prisma models (SequenceConfig, SequenceCounter)
+  const p: any = prisma;
+
+  let config = await p.sequenceConfig.findUnique({
     where: { moduleCode },
   });
 
   if (!config) {
     // Create default configuration
-    config = await prisma.sequenceConfig.create({
+    config = await p.sequenceConfig.create({
       data: {
         moduleCode,
         useYearPrefix: false,
@@ -65,7 +68,7 @@ export async function generateSRPLId(
   const currentFY = financialYear || getFinancialYear(new Date(), config.financialYearStart);
 
   // Use a transaction with row-level locking to ensure atomicity
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     // Build where clause for finding counter
     const whereClause: any = {
       moduleCode,
@@ -119,17 +122,6 @@ export async function generateSRPLId(
         },
       });
     }
-      create: {
-        moduleCode,
-        currentValue: 1, // Start at 1 for first record
-        year: useYear ? currentYear : null,
-        financialYear: useFY ? currentFY : null,
-        lastResetAt: new Date(),
-      },
-      update: {
-        currentValue: { increment: 1 },
-      },
-    });
 
     // Generate the SRPL ID
     const sequence = String(counterRecord.currentValue).padStart(config.padding, '0');
@@ -180,7 +172,7 @@ export async function initializeSequenceCounters(prisma: PrismaClient): Promise<
 
   for (const moduleCode of modules) {
     // Create config if it doesn't exist
-    await prisma.sequenceConfig.upsert({
+    await (prisma as any).sequenceConfig.upsert({
       where: { moduleCode },
       create: {
         moduleCode,
@@ -193,7 +185,7 @@ export async function initializeSequenceCounters(prisma: PrismaClient): Promise<
     });
 
     // Create initial counter if it doesn't exist
-    const existing = await prisma.sequenceCounter.findFirst({
+    const existing = await (prisma as any).sequenceCounter.findFirst({
       where: {
         moduleCode,
         year: null,
@@ -202,7 +194,7 @@ export async function initializeSequenceCounters(prisma: PrismaClient): Promise<
     });
 
     if (!existing) {
-      await prisma.sequenceCounter.create({
+      await (prisma as any).sequenceCounter.create({
         data: {
           moduleCode,
           currentValue: 0,
@@ -220,7 +212,7 @@ export async function previewNextSRPLId(
 ): Promise<string> {
   const { moduleCode, prisma, year, financialYear } = options;
 
-  const config = await prisma.sequenceConfig.findUnique({
+  const config = await (prisma as any).sequenceConfig.findUnique({
     where: { moduleCode },
   });
 
@@ -234,7 +226,7 @@ export async function previewNextSRPLId(
   const currentYear = year || new Date().getFullYear();
   const currentFY = financialYear || getFinancialYear(new Date(), config.financialYearStart);
 
-  const counter = await prisma.sequenceCounter.findFirst({
+  const counter = await (prisma as any).sequenceCounter.findFirst({
     where: {
       moduleCode,
       ...(useYear ? { year: currentYear } : { year: null }),
