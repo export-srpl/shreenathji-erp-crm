@@ -27,6 +27,12 @@ export async function GET(req: Request, { params }: Params) {
         uploadedBy: {
           select: { id: true, name: true, email: true },
         },
+        product: {
+          select: { id: true, name: true, srplId: true },
+        },
+        customer: {
+          select: { id: true, companyName: true, srplId: true },
+        },
         versions: {
           orderBy: { version: 'desc' },
           include: {
@@ -106,9 +112,15 @@ export async function DELETE(_req: Request, { params }: Params) {
     });
 
     // Log activity
+    const moduleMap: Record<string, string> = {
+      product: 'PROD',
+      customer: 'CUST',
+      lead: 'LEAD',
+      deal: 'DEAL',
+    };
     await logActivity({
       prisma,
-      module: document.entityType.toUpperCase(),
+      module: (moduleMap[document.entityType] || 'LEAD') as any,
       entityType: document.entityType,
       entityId: document.entityId,
       action: 'document_deleted',

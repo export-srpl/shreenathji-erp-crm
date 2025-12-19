@@ -130,6 +130,7 @@ model Customer {
   quotes           Quote[]
   salesOrders      SalesOrder[]
   deals            Deal[]
+  documents        Document[]
 }
 
 model Lead {
@@ -209,6 +210,7 @@ model Product {
   quoteItems      QuoteItem[]
   salesOrderItems SalesOrderItem[]
   dealItems       DealItem[]
+  documents       Document[]
 }
 
 model Quote {
@@ -547,15 +549,21 @@ model RolePermission {
 model Document {
   id          String            @id @default(cuid())
   name        String
-  type        String            // 'COA', 'MSDS', 'contract', 'approval', 'regulatory', 'other'
+  type        String            // 'COA', 'TDS', 'MSDS', 'contract', 'approval', 'regulatory'
   description String?
-  entityType  String            // 'product', 'lead', 'customer', 'deal', 'quote', 'invoice'
+  entityType  String            // 'product', 'customer', 'lead', 'deal', 'quote', 'invoice'
   entityId    String            // ID of the related entity
+  productId   String?           // Required for COA, TDS, MSDS
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId  String?           // Required for contract
+  customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   mimeType    String?
   fileSize    Int?              // bytes
   filePath    String?           // Storage path (S3, local, etc.)
   fileUrl     String?           // Public/private URL
   isPublic    Boolean           @default(false)
+  isScanned   Boolean           @default(false) // Virus scan status
+  scanResult  String?           // 'clean', 'infected', 'error'
   uploadedById String?
   uploadedBy  User?             @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   createdAt   DateTime          @default(now())
@@ -566,6 +574,8 @@ model Document {
   @@index([entityType, entityId])
   @@index([type])
   @@index([uploadedById])
+  @@index([productId])
+  @@index([customerId])
 }
 
 model DocumentVersion {

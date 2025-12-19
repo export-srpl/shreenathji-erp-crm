@@ -4,6 +4,7 @@ import { getAuthContext } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { saveDocument } from '@/lib/document-storage';
 import { logActivity } from '@/lib/activity-logger';
+import { scanFile, validateFileType, validateFileSize } from '@/lib/virus-scanner';
 
 /**
  * GET /api/documents
@@ -71,9 +72,41 @@ export async function POST(req: Request) {
     const name = formData.get('name') as string;
     const type = formData.get('type') as string;
     const description = formData.get('description') as string | null;
+    const productId = formData.get('productId') as string | null;
+    const customerId = formData.get('customerId') as string | null;
 
     if (!file || !entityType || !entityId || !name || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Validate file type
+    const fileTypeValidation = validateFileType(file.type, file.name);
+    if (!fileTypeValidation.valid) {
+      return NextResponse.json({ error: fileTypeValidation.message }, { status: 400 });
+    }
+
+    // Validate file size
+    const fileSizeValidation = validateFileSize(file.size);
+    if (!fileSizeValidation.valid) {
+      return NextResponse.json({ error: fileSizeValidation.message }, { status: 400 });
+    }
+
+    // Validate document type requirements
+    const productRequiredTypes = ['COA', 'TDS', 'MSDS'];
+    const customerRequiredTypes = ['contract'];
+
+    if (productRequiredTypes.includes(type) && !productId) {
+      return NextResponse.json(
+        { error: `Product selection is required for ${type} documents` },
+        { status: 400 },
+      );
+    }
+
+    if (customerRequiredTypes.includes(type) && !customerId) {
+      return NextResponse.json(
+        { error: `Customer selection is required for ${type} documents` },
+        { status: 400 },
+      );
     }
 
     const prisma = await getPrismaClient();
@@ -82,6 +115,19 @@ export async function POST(req: Request) {
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Scan for viruses before saving
+    const scanResult = await scanFile(file.name, buffer);
+    if (!scanResult.isClean) {
+      return NextResponse.json(
+        {
+          error: 'File failed virus scan',
+          details: scanResult.message,
+          scanResult: scanResult.scanResult,
+        },
+        { status: 400 },
+      );
+    }
 
     // Save file
     const { filePath, fileUrl } = await saveDocument(buffer, file.name, entityType, entityId);
@@ -94,16 +140,30 @@ export async function POST(req: Request) {
         description,
         entityType,
         entityId,
+        productId: productId || null,
+        customerId: customerId || null,
         mimeType: file.type,
         fileSize: file.size,
         filePath,
         fileUrl,
+        isScanned: scanResult.isScanned,
+        scanResult: scanResult.scanResult,
         uploadedById: auth.userId,
       },
       include: {
         uploadedBy: {
           select: { id: true, name: true, email: true },
         },
+        product: productId
+          ? {
+              select: { id: true, name: true, srplId: true },
+            }
+          : undefined,
+        customer: customerId
+          ? {
+              select: { id: true, companyName: true, srplId: true },
+            }
+          : undefined,
       },
     });
 
@@ -124,7 +184,7 @@ export async function POST(req: Request) {
     // Log activity
     await logActivity({
       prisma,
-      module: entityType.toUpperCase(),
+      module: (entityType.toUpperCase() === 'PRODUCT' ? 'PROD' : entityType.toUpperCase() === 'CUSTOMER' ? 'CUST' : 'LEAD') as any,
       entityType,
       entityId,
       action: 'document_added',
