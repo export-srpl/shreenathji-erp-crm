@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
-export default function AddCustomerPage() {
+function AddCustomerForm() {
   const [customerType, setCustomerType] = useState('domestic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [country, setCountry] = useState('India');
@@ -292,5 +292,17 @@ export default function AddCustomerPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function AddCustomerPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <AddCustomerForm />
+    </Suspense>
   );
 }
