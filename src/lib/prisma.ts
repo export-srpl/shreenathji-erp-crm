@@ -14,6 +14,15 @@ export async function getPrismaClient() {
     prismaSingleton = new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
+
+    // Initialize sequence counters on first connection
+    try {
+      const { initializeSequenceCounters } = await import('./srpl-id-generator');
+      await initializeSequenceCounters(prismaSingleton);
+    } catch (error) {
+      console.error('Failed to initialize sequence counters:', error);
+      // Don't fail if tables don't exist yet (migration not run)
+    }
   }
   return prismaSingleton;
 }

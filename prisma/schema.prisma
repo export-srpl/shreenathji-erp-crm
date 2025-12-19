@@ -29,6 +29,7 @@ model User {
   resetTokens  PasswordResetToken[]
   sessions     Session[]
   auditLogs    AuditLog[]
+  createdForms LeadCaptureForm[] @relation("FormCreator")
 }
 
 model Session {
@@ -78,6 +79,7 @@ model PasswordResetToken {
 
 model Customer {
   id               String            @id @default(cuid())
+  srplId           String?           @unique // SRPL-CUST-000001
   companyName      String
   customerType     String
   country          String
@@ -101,6 +103,7 @@ model Customer {
 
 model Lead {
   id                  String   @id @default(cuid())
+  srplId              String?  @unique // SRPL-LEAD-000001
   companyName         String
   contactName         String?
   email               String?
@@ -123,10 +126,12 @@ model Lead {
   ownerId             String?
   owner               User?    @relation("UserLeads", fields: [ownerId], references: [id])
   quotes              Quote[]
+  formSubmission      FormSubmission?
 }
 
 model Deal {
   id          String   @id @default(cuid())
+  srplId      String?  @unique // SRPL-DEAL-000001
   title       String
   stage       String   @default("Prospecting")
   customerId  String
@@ -147,6 +152,7 @@ model DealItem {
 
 model Product {
   id              String           @id @default(cuid())
+  srplId          String?          @unique // SRPL-PROD-000001
   name            String
   sku             String?          @unique
   hsnCode         String?
@@ -165,6 +171,7 @@ model Product {
 
 model Quote {
   id          String            @id @default(cuid())
+  srplId      String?           @unique // SRPL-QUOT-000001
   quoteNumber String            @unique
   status      String            @default("Draft")
   issueDate   DateTime
@@ -196,6 +203,7 @@ model QuoteItem {
 
 model SalesOrder {
   id           String           @id @default(cuid())
+  srplId       String?          @unique // SRPL-SO-000001
   orderNumber  String           @unique
   status       String           @default("Draft")
   orderDate    DateTime
@@ -240,6 +248,7 @@ model Payment {
 
 model ProformaInvoice {
   id             String         @id @default(cuid())
+  srplId         String?        @unique // SRPL-PI-000001
   proformaNumber String         @unique
   status         String         @default("Draft")
   issueDate      DateTime
@@ -267,6 +276,7 @@ model ProformaItem {
 
 model Invoice {
   id            String           @id @default(cuid())
+  srplId        String?         @unique // SRPL-INV-000001
   invoiceNumber String           @unique
   status        String           @default("Draft")
   issueDate     DateTime
@@ -291,4 +301,77 @@ model InvoiceItem {
   productId   String
   invoice     Invoice @relation(fields: [invoiceId], references: [id])
   product     Product @relation(fields: [productId], references: [id])
+}
+
+model LeadCaptureForm {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  slug        String      @unique
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById String?
+  createdBy   User?       @relation("FormCreator", fields: [createdById], references: [id])
+  fields      FormField[]
+  submissions FormSubmission[]
+}
+
+model FormField {
+  id          String           @id @default(cuid())
+  formId      String
+  form        LeadCaptureForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
+  label       String
+  fieldType   String           // 'text', 'email', 'phone', 'textarea', 'select', 'checkbox', 'number', 'date'
+  placeholder String?
+  required    Boolean          @default(false)
+  options     String?           // JSON array for select/checkbox options
+  order       Int               @default(0)
+  validation  String?           // JSON object for validation rules
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([formId])
+}
+
+model FormSubmission {
+  id          String           @id @default(cuid())
+  formId      String
+  form        LeadCaptureForm   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  leadId      String?          @unique
+  lead        Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  data        String           // JSON object with field values
+  submittedAt DateTime         @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([formId])
+  @@index([leadId])
+}
+
+// SRPL Auto-Numbering System
+model SequenceCounter {
+  id            String   @id @default(cuid())
+  moduleCode    String   // e.g., 'LEAD', 'CUST', 'INV', etc.
+  currentValue  Int      @default(0)
+  year          Int?     // For year-based sequences
+  financialYear String?  // For FY-based sequences (e.g., 'FY25')
+  lastResetAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([moduleCode, year, financialYear])
+  @@index([moduleCode, year])
+  @@index([moduleCode, financialYear])
+}
+
+model SequenceConfig {
+  id                String   @id @default(cuid())
+  moduleCode        String   @unique
+  useYearPrefix     Boolean  @default(false)
+  useFinancialYear  Boolean  @default(false)
+  financialYearStart Int     @default(4) // Month when FY starts (1-12, default April)
+  padding           Int      @default(6) // Number of digits for sequence (default 6)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

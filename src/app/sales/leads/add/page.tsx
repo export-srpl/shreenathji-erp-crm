@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,26 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown, Plus, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { countries } from '@/lib/countries';
 
 const leadSources = ['Website', 'Referral', 'Exhibition', 'Cold Call', 'IndiaMART', 'Other'];
 const leadStatuses = ['New', 'Contacted', 'Qualified', 'Disqualified', 'Converted'];
 const contactMethods = ['Email', 'Phone', 'WhatsApp'];
+
+type Product = {
+  id: string;
+  name: string;
+};
+
+type LeadProduct = {
+  productId: string;
+  application?: string;
+  monthlyRequirement?: string;
+};
 
 function LeadForm() {
   const router = useRouter();
@@ -27,9 +42,13 @@ function LeadForm() {
   const [initialValues, setInitialValues] = useState<Record<string, any> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [salesPeople, setSalesPeople] = useState<{ id: string; name: string }[]>([]);
-  const [products, setProducts] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [leadProducts, setLeadProducts] = useState<LeadProduct[]>([{ productId: '', application: '', monthlyRequirement: '' }]);
   const [leadSource, setLeadSource] = useState('');
   const [leadStatus, setLeadStatus] = useState('New');
+  const [customerType, setCustomerType] = useState<'domestic' | 'international' | ''>('');
+  const [vatNumber, setVatNumber] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -72,8 +91,11 @@ function LeadForm() {
         const productsRes = await fetch('/api/products');
         if (productsRes.ok) {
           const productsData = await productsRes.json();
-          const productNames = productsData.map((p: any) => p.name).filter((name: string) => name);
-          setProducts(productNames);
+          const mappedProducts = productsData.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+          }));
+          setProducts(mappedProducts);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -90,6 +112,16 @@ function LeadForm() {
     }
   }, [isSalesPerson, currentUserId, assignedSalesperson]);
 
+  // Handle customerType changes - auto-set country and preserve data
+  useEffect(() => {
+    if (customerType === 'domestic') {
+      setSelectedCountry('India');
+    } else if (customerType === 'international' && selectedCountry === 'India') {
+      // If switching from domestic to international, clear country if it was India
+      setSelectedCountry('');
+    }
+  }, [customerType]);
+
   // If editing, load existing lead data
   useEffect(() => {
     async function loadLead() {
@@ -99,36 +131,54 @@ function LeadForm() {
         if (!res.ok) throw new Error('Failed to load lead');
         const lead = await res.json();
 
+        // Load all available fields from the lead
+        // Note: designation, industry, and contactMethod are not stored in DB
+        // but are kept in the form for potential future use
         setInitialValues({
           leadSource: lead.source ?? '',
           companyName: lead.companyName ?? '',
-          website: '',
           gstNo: lead.gstNo ?? '',
+          vatNumber: lead.vatNumber ?? '',
+          customerType: lead.customerType ?? (lead.country === 'India' ? 'domestic' : 'international'),
           contactName: lead.contactName ?? '',
-          designation: '',
+          designation: '', // Not stored in DB
           email: lead.email ?? '',
           phone: lead.phone ?? '',
           country: lead.country ?? '',
           state: lead.state ?? '',
           city: lead.city ?? '',
           billingAddress: lead.billingAddress ?? '',
-          industry: '',
+          industry: '', // Not stored in DB
           productInterest: lead.productInterest ?? '',
           application: lead.application ?? '',
           monthlyRequirement: lead.monthlyRequirement ?? '',
-          assignedSalesperson: lead.assignedSalesperson ?? '',
+          assignedSalesperson: lead.ownerId ?? '',
           leadStatus: lead.status ?? 'New',
           followUpDate: lead.followUpDate ? new Date(lead.followUpDate).toISOString().split('T')[0] : '',
-          contactMethod: '',
+          contactMethod: '', // Not stored in DB
           notes: lead.notes ?? '',
         });
 
         setSelectedCountry(lead.country ?? '');
         setLeadSource(lead.source ?? '');
         setLeadStatus(lead.status ?? 'New');
+        // Set assignedSalesperson from ownerId
         if (lead.ownerId) {
           setAssignedSalesperson(lead.ownerId);
         }
+        // Set customerType (default to domestic if country is India, otherwise international)
+        const leadCountry = lead.country ?? '';
+        const inferredCustomerType = lead.customerType || (leadCountry === 'India' ? 'domestic' : leadCountry ? 'international' : '');
+        if (inferredCustomerType === 'domestic' || (leadCountry === 'India' && !lead.customerType)) {
+          setCustomerType('domestic');
+          setGstNumber(lead.gstNo ?? '');
+        } else if (inferredCustomerType === 'international' || (leadCountry && leadCountry !== 'India')) {
+          setCustomerType('international');
+          setVatNumber(lead.vatNumber ?? '');
+        }
+        // Preserve GST/VAT numbers
+        if (lead.gstNo) setGstNumber(lead.gstNo);
+        if (lead.vatNumber) setVatNumber(lead.vatNumber);
       } catch (error) {
         console.error(error);
         toast({
@@ -140,10 +190,94 @@ function LeadForm() {
     }
 
     loadLead();
-  }, [leadId, toast, isSalesPerson]);
+  }, [leadId, toast]);
+
+  // Parse productInterest when products are loaded (for editing)
+  useEffect(() => {
+    if (!leadId || !initialValues?.productInterest || products.length === 0) return;
+    
+    const productInterest = initialValues.productInterest;
+    try {
+      const parsedProducts = JSON.parse(productInterest);
+      if (Array.isArray(parsedProducts) && parsedProducts.length > 0) {
+        setLeadProducts(parsedProducts);
+      } else {
+        // Legacy: if it's a string, convert to single product entry
+        const product = products.find(p => p.name === productInterest || p.id === productInterest);
+        if (product) {
+          setLeadProducts([{ 
+            productId: product.id, 
+            application: initialValues.application || '', 
+            monthlyRequirement: initialValues.monthlyRequirement || '' 
+          }]);
+        }
+      }
+    } catch {
+      // Legacy: if it's not JSON, treat as single product name
+      const product = products.find(p => p.name === productInterest);
+      if (product) {
+        setLeadProducts([{ 
+          productId: product.id, 
+          application: initialValues.application || '', 
+          monthlyRequirement: initialValues.monthlyRequirement || '' 
+        }]);
+      }
+    }
+  }, [leadId, initialValues, products]);
+
+  // Handlers for managing multiple products
+  const handleAddProduct = () => {
+    setLeadProducts([...leadProducts, { productId: '', application: '', monthlyRequirement: '' }]);
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    if (leadProducts.length > 1) {
+      setLeadProducts(leadProducts.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleProductChange = (index: number, productId: string) => {
+    const newProducts = [...leadProducts];
+    newProducts[index].productId = productId;
+    setLeadProducts(newProducts);
+  };
+
+  const handleProductApplicationChange = (index: number, application: string) => {
+    const newProducts = [...leadProducts];
+    newProducts[index].application = application;
+    setLeadProducts(newProducts);
+  };
+
+  const handleProductMonthlyRequirementChange = (index: number, monthlyRequirement: string) => {
+    const newProducts = [...leadProducts];
+    newProducts[index].monthlyRequirement = monthlyRequirement;
+    setLeadProducts(newProducts);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    
+    // Validate customerType for new leads
+    if (!leadId && !customerType) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select a customer type.',
+      });
+      return;
+    }
+    
+    // Validate that at least one product is selected
+    const validProducts = leadProducts.filter(p => p.productId);
+    if (validProducts.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select at least one product.',
+      });
+      return;
+    }
+    
     setIsSaving(true);
     const formData = new FormData(event.currentTarget);
     const isEdit = !!leadId;
@@ -155,42 +289,54 @@ function LeadForm() {
       let requestBody: any;
       
       if (isEdit) {
-        // When editing, update status and follow-up + business fields.
-        // For admins, also allow updating lead source and owner (reassignment).
+        // When editing, send all fields with allowFullUpdate for admins
+        // For non-admins, still send all fields but backend will handle permissions
         requestBody = {
+          allowFullUpdate: isAdmin,
+          source: formData.get('leadSource') as string,
+          companyName: formData.get('companyName') as string,
+          gstNo: customerType === 'domestic' ? gstNumber : '',
+          vatNumber: customerType === 'international' ? vatNumber : '',
+          customerType: customerType || (selectedCountry === 'India' ? 'domestic' : 'international'),
+          contactName: formData.get('contactName') as string,
+          designation: formData.get('designation') as string,
+          email: formData.get('email') as string,
+          phone: formData.get('phone') as string,
+          country: customerType === 'domestic' ? 'India' : (formData.get('country') as string || selectedCountry),
+          state: formData.get('state') as string,
+          city: formData.get('city') as string,
+          billingAddress: formData.get('billingAddress') as string,
+          industry: formData.get('industry') as string,
+          productInterest: JSON.stringify(validProducts),
+          // For backward compatibility, also send first product's application and monthlyRequirement
+          application: validProducts[0]?.application || '',
+          monthlyRequirement: validProducts[0]?.monthlyRequirement || '',
           status: formData.get('leadStatus') as string,
           followUpDate: (formData.get('followUpDate') as string) || null,
-          productInterest: formData.get('productInterest') as string,
-          application: formData.get('application') as string,
-          monthlyRequirement: formData.get('monthlyRequirement') as string,
+          contactMethod: formData.get('contactMethod') as string,
+          notes: formData.get('notes') as string,
+          ownerId: assignedSalesperson || null,
         };
-
-        if (isAdmin) {
-          requestBody = {
-            ...requestBody,
-            allowFullUpdate: true,
-            source: formData.get('leadSource') as string,
-            ownerId: assignedSalesperson || null,
-          };
-        }
       } else {
         // When creating, send all fields
         requestBody = {
           leadSource: formData.get('leadSource') as string,
           companyName: formData.get('companyName') as string,
-          website: formData.get('website') as string,
-          gstNo: formData.get('gstNo') as string,
+          gstNo: customerType === 'domestic' ? gstNumber : '',
+          vatNumber: customerType === 'international' ? vatNumber : '',
+          customerType: customerType || (selectedCountry === 'India' ? 'domestic' : 'international'),
           contactName: formData.get('contactName') as string,
           designation: formData.get('designation') as string,
           email: formData.get('email') as string,
           phone: formData.get('phone') as string,
-          country: formData.get('country') as string,
+          country: customerType === 'domestic' ? 'India' : (formData.get('country') as string || selectedCountry),
           state: formData.get('state') as string,
           city: formData.get('city') as string,
           billingAddress: formData.get('billingAddress') as string,
-          productInterest: formData.get('productInterest') as string,
-          application: formData.get('application') as string,
-          monthlyRequirement: formData.get('monthlyRequirement') as string,
+          productInterest: JSON.stringify(validProducts),
+          // For backward compatibility, also send first product's application and monthlyRequirement
+          application: validProducts[0]?.application || '',
+          monthlyRequirement: validProducts[0]?.monthlyRequirement || '',
           ownerId: assignedSalesperson || null,
           status: formData.get('leadStatus') as string,
           followUpDate: formData.get('followUpDate') as string || null,
@@ -250,6 +396,28 @@ function LeadForm() {
             {/* Lead Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Lead Details</h3>
+              {!leadId && (
+                <div className="mb-4">
+                  <Label htmlFor="customerType">Customer Type *</Label>
+                  <Select
+                    name="customerType"
+                    required
+                    value={customerType}
+                    onValueChange={(value: 'domestic' | 'international') => setCustomerType(value)}
+                  >
+                    <SelectTrigger className="w-full md:w-[300px]">
+                      <SelectValue placeholder="Select customer type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="domestic">Domestic</SelectItem>
+                      <SelectItem value="international">International</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select whether the customer is based in India (Domestic) or outside India (International)
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label htmlFor="leadSource">Lead Source</Label>
@@ -279,18 +447,6 @@ function LeadForm() {
                     placeholder="e.g. Acme Corporation"
                     required
                     defaultValue={initialValues?.companyName}
-                    disabled={!!leadId}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="website">Website</Label>
-                  <Input
-                    id="website"
-                    name="website"
-                    type="url"
-                    placeholder="e.g. https://acme.com"
-                    defaultValue={initialValues?.website}
-                    disabled={!!leadId}
                   />
                 </div>
               </div>
@@ -310,7 +466,6 @@ function LeadForm() {
                     placeholder="e.g. Jane Doe"
                     required
                     defaultValue={initialValues?.contactName}
-                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -320,7 +475,6 @@ function LeadForm() {
                     name="designation"
                     placeholder="e.g. Purchase Manager"
                     defaultValue={initialValues?.designation}
-                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -332,7 +486,6 @@ function LeadForm() {
                     placeholder="e.g. jane.doe@acme.com"
                     required
                     defaultValue={initialValues?.email}
-                    disabled={!!leadId}
                   />
                 </div>
                 <div>
@@ -344,7 +497,6 @@ function LeadForm() {
                     placeholder="e.g. +91 123 456 7890"
                     required
                     defaultValue={initialValues?.phone}
-                    disabled={!!leadId}
                   />
                 </div>
               </div>
@@ -363,7 +515,6 @@ function LeadForm() {
                           name="billingAddress"
                           placeholder="e.g. 123 Main Street, Industrial Area"
                           defaultValue={initialValues?.billingAddress}
-                          disabled={!!leadId}
                         />
                     </div>
                     <div>
@@ -373,7 +524,6 @@ function LeadForm() {
                           name="city"
                           placeholder="e.g. Ahmedabad"
                           defaultValue={initialValues?.city}
-                          disabled={!!leadId}
                         />
                     </div>
                     <div>
@@ -384,7 +534,6 @@ function LeadForm() {
                           placeholder="e.g. Gujarat"
                           required
                           defaultValue={initialValues?.state}
-                          disabled={!!leadId}
                         />
                     </div>
                     <div>
@@ -394,23 +543,38 @@ function LeadForm() {
                           required
                           onValueChange={setSelectedCountry}
                           value={selectedCountry || initialValues?.country || undefined}
-                          disabled={!!leadId}
+                          disabled={customerType === 'domestic'}
                         >
                             <SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger>
                             <SelectContent>
                                 {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        {customerType === 'domestic' && (
+                          <p className="text-xs text-muted-foreground mt-1">Automatically set to India for domestic customers</p>
+                        )}
                     </div>
-                    {selectedCountry === 'India' && (
+                    {customerType === 'domestic' && (
                         <div>
                             <Label htmlFor="gstNo">GST Number (Optional)</Label>
                             <Input
                               id="gstNo"
                               name="gstNo"
                               placeholder="e.g. 24AAABC1234D1Z2"
-                              defaultValue={initialValues?.gstNo}
-                              disabled={!!leadId}
+                              value={gstNumber}
+                              onChange={(e) => setGstNumber(e.target.value)}
+                            />
+                        </div>
+                    )}
+                    {customerType === 'international' && (
+                        <div>
+                            <Label htmlFor="vatNumber">VAT Number (Optional)</Label>
+                            <Input
+                              id="vatNumber"
+                              name="vatNumber"
+                              placeholder="e.g. GB123456789"
+                              value={vatNumber}
+                              onChange={(e) => setVatNumber(e.target.value)}
                             />
                         </div>
                     )}
@@ -422,7 +586,7 @@ function LeadForm() {
             {/* Business Context */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Business Context</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <Label htmlFor="industry">Industry</Label>
                   <Input
@@ -430,40 +594,66 @@ function LeadForm() {
                     name="industry"
                     placeholder="e.g. Pharmaceuticals"
                     defaultValue={initialValues?.industry}
-                    disabled={!!leadId}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="productInterest">Product Interest</Label>
-                  <Select
-                    name="productInterest"
-                    required
-                    defaultValue={initialValues?.productInterest}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              </div>
+              
+              {/* Multiple Products Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Products & Requirements</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddProduct}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Product
+                  </Button>
                 </div>
-                <div>
-                  <Label htmlFor="application">Application / End Use</Label>
-                  <Input
-                    id="application"
-                    name="application"
-                    placeholder="e.g. Resin Manufacturing"
-                    defaultValue={initialValues?.application}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="monthlyRequirement">Approx. Monthly Requirement (MTS)</Label>
-                  <Input
-                    id="monthlyRequirement"
-                    name="monthlyRequirement"
-                    type="number"
-                    placeholder="e.g. 100"
-                    defaultValue={initialValues?.monthlyRequirement}
-                  />
+                <div className="space-y-4">
+                  {leadProducts.map((product, index) => (
+                    <div key={index} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-start justify-between">
+                        <h4 className="text-sm font-medium text-muted-foreground">Product {index + 1}</h4>
+                        {leadProducts.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveProduct(index)}
+                            className="h-8 w-8"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label>Product *</Label>
+                          <ProductCombobox
+                            products={products}
+                            onSelectProduct={(productId) => handleProductChange(index, productId)}
+                            value={product.productId}
+                            disabled={isSaving}
+                          />
+                        </div>
+                        <div>
+                          <Label>Application / End Use</Label>
+                          <Input
+                            placeholder="e.g. Resin Manufacturing"
+                            value={product.application || ''}
+                            onChange={(e) => handleProductApplicationChange(index, e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label>Monthly Requirement (MTS)</Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g. 100"
+                            value={product.monthlyRequirement || ''}
+                            onChange={(e) => handleProductMonthlyRequirementChange(index, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -481,8 +671,7 @@ function LeadForm() {
                               name="assignedSalesperson"
                               required
                               onValueChange={setAssignedSalesperson}
-                              value={assignedSalesperson || ''}
-                              disabled={!isAdmin}
+                              value={assignedSalesperson || initialValues?.assignedSalesperson || ''}
                             >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select a salesperson" />
@@ -607,6 +796,68 @@ function LeadForm() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ProductCombobox component for searchable product selection
+function ProductCombobox({
+  products,
+  onSelectProduct,
+  value,
+  disabled,
+}: {
+  products: Product[];
+  onSelectProduct: (productId: string) => void;
+  value: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const selectedProductName = useMemo(() => {
+    return products.find((product) => product.id === value)?.name;
+  }, [products, value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={disabled}
+          type="button"
+        >
+          {value ? selectedProductName : 'Select product...'}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+        <Command>
+          <CommandInput placeholder="Search product..." />
+          <CommandEmpty>No product found.</CommandEmpty>
+          <CommandList className="max-h-[300px]">
+            <CommandGroup>
+              {products.map((product) => (
+                <CommandItem
+                  key={product.id}
+                  value={product.name}
+                  onSelect={() => {
+                    onSelectProduct(product.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn('mr-2 h-4 w-4', value === product.id ? 'opacity-100' : 'opacity-0')}
+                  />
+                  {product.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

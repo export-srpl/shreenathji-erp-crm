@@ -3,6 +3,7 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { leadSchema, validateInput } from '@/lib/validation';
+import { generateSRPLId } from '@/lib/srpl-id-generator';
 
 // GET /api/leads - list leads
 export async function GET(_req: Request) {
@@ -16,6 +17,7 @@ export async function GET(_req: Request) {
   const rawLeads = await prisma.lead.findMany({
     select: {
       id: true,
+      srplId: true,
       companyName: true,
       contactName: true,
       email: true,
@@ -89,8 +91,15 @@ export async function POST(req: Request) {
 
   const validatedData = validation.data;
 
+  // Generate SRPL ID atomically
+  const srplId = await generateSRPLId({
+    moduleCode: 'LEAD',
+    prisma,
+  });
+
   const lead = await prisma.lead.create({
     data: {
+      srplId, // Auto-generated SRPL ID
       companyName: validatedData.companyName,
       contactName: validatedData.contactName,
       email: validatedData.email,
