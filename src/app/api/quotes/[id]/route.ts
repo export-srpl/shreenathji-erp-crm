@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { quoteUpdateSchema, validateInput } from '@/lib/validation';
+import { logActivity } from '@/lib/activity-logger';
 
 type Params = {
   params: { id: string };
@@ -60,6 +61,15 @@ export async function PATCH(req: Request, { params }: Params) {
   const data = validation.data;
 
   try {
+    // Load existing quote for diffing
+    const existing = await prisma.quote.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+    }
+
     const updated = await prisma.quote.update({
       where: { id: params.id },
       data: {
@@ -78,6 +88,34 @@ export async function PATCH(req: Request, { params }: Params) {
           : undefined,
       },
       include: { items: { include: { product: true } }, customer: true, lead: true, salesRep: true },
+    });
+
+    // Determine key changes for activity log
+    const changes: Record<string, { old: any; new: any }> = {};
+    if (data.status !== undefined && data.status !== existing.status) {
+      changes.status = { old: existing.status, new: data.status };
+    }
+
+    // Log activity: quote updated
+    await logActivity({
+      prisma,
+      module: 'QUOTE',
+      entityType: 'quote',
+      entityId: params.id,
+      srplId: existing.srplId || null,
+      action: Object.keys(changes).includes('status') ? 'stage_change' : 'update',
+      field: Object.keys(changes).includes('status') ? 'status' : null,
+      oldValue: Object.keys(changes).includes('status') ? changes.status.old : null,
+      newValue: Object.keys(changes).includes('status') ? changes.status.new : null,
+      description: Object.keys(changes).includes('status')
+        ? `Quote status changed from "${changes.status.old}" to "${changes.status.new}"`
+        : `Quote ${existing.quoteNumber} updated`,
+      metadata: {
+        quoteNumber: existing.quoteNumber,
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+        itemCount: updated.items.length,
+      },
+      performedById: auth.userId || null,
     });
 
     return NextResponse.json(updated);

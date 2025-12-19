@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/invoices - list invoices with customer
 export async function GET() {
@@ -48,7 +49,25 @@ export async function POST(req: Request) {
           }
         : undefined,
     },
-    include: { items: true },
+    include: { items: true, customer: true },
+  });
+
+  // Log activity: invoice created
+  await logActivity({
+    prisma,
+    module: 'INV',
+    entityType: 'invoice',
+    entityId: invoice.id,
+    srplId: invoice.srplId || null,
+    action: 'create',
+    description: `Invoice ${invoice.invoiceNumber} created for ${invoice.customer.companyName}`,
+    metadata: {
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      customerId: invoice.customerId,
+      itemCount: invoice.items.length,
+    },
+    performedById: auth.userId || null,
   });
 
   return NextResponse.json(invoice, { status: 201 });

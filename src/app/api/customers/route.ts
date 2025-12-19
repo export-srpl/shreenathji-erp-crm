@@ -3,6 +3,7 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { customerSchema, validateInput } from '@/lib/validation';
+import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/customers - list customers
 export async function GET(req: Request) {
@@ -88,6 +89,22 @@ export async function POST(req: Request) {
       contactPhone: validatedData.contactPhone,
       contactTitle: validatedData.contactTitle,
     },
+  });
+
+  // Log activity: customer created
+  await logActivity({
+    prisma,
+    module: 'CUST',
+    entityType: 'customer',
+    entityId: customer.id,
+    srplId: (customer as any).srplId || undefined,
+    action: 'create',
+    description: `Customer created: ${customer.companyName}`,
+    metadata: {
+      customerType: customer.customerType,
+      country: customer.country,
+    },
+    performedById: auth.userId,
   });
 
   return NextResponse.json(customer, { status: 201 });

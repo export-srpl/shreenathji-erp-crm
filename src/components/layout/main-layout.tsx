@@ -15,7 +15,7 @@ import { Button } from '../ui/button';
 import { Settings, LogOut, Clock } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { UniversalSearch } from './universal-search';
+import { CommandBarTrigger } from '@/components/global-search/command-bar-trigger';
 
 interface CurrentUser {
   id: string;
@@ -167,7 +167,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <header className="flex items-center justify-between p-4 bg-background/80 backdrop-blur-sm sticky top-0 border-b z-10">
           <SidebarTrigger />
           <div className="flex-1 max-w-2xl mx-4">
-            <UniversalSearch />
+            <CommandBarTrigger />
           </div>
           <div className="flex items-center gap-3 text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />

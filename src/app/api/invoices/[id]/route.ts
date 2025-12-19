@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { invoiceUpdateSchema, validateInput } from '@/lib/validation';
+import { logActivity } from '@/lib/activity-logger';
 
 type Params = {
   params: { id: string };
@@ -59,6 +60,15 @@ export async function PATCH(req: Request, { params }: Params) {
   const data = validation.data;
 
   try {
+    // Load existing invoice for diffing
+    const existing = await prisma.invoice.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
     const updated = await prisma.invoice.update({
       where: { id: params.id },
       data: {
@@ -77,6 +87,34 @@ export async function PATCH(req: Request, { params }: Params) {
           : undefined,
       },
       include: { items: { include: { product: true } }, customer: true, salesOrder: true, proforma: true },
+    });
+
+    // Determine key changes for activity log
+    const changes: Record<string, { old: any; new: any }> = {};
+    if (data.status !== undefined && data.status !== existing.status) {
+      changes.status = { old: existing.status, new: data.status };
+    }
+
+    // Log activity: invoice updated
+    await logActivity({
+      prisma,
+      module: 'INV',
+      entityType: 'invoice',
+      entityId: params.id,
+      srplId: existing.srplId || null,
+      action: Object.keys(changes).includes('status') ? 'stage_change' : 'update',
+      field: Object.keys(changes).includes('status') ? 'status' : null,
+      oldValue: Object.keys(changes).includes('status') ? changes.status.old : null,
+      newValue: Object.keys(changes).includes('status') ? changes.status.new : null,
+      description: Object.keys(changes).includes('status')
+        ? `Invoice status changed from "${changes.status.old}" to "${changes.status.new}"`
+        : `Invoice ${existing.invoiceNumber} updated`,
+      metadata: {
+        invoiceNumber: existing.invoiceNumber,
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+        itemCount: updated.items.length,
+      },
+      performedById: auth.userId || null,
     });
 
     return NextResponse.json(updated);

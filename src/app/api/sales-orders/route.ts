@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/sales-orders - list sales orders with customer and items
 export async function GET() {
@@ -55,6 +56,24 @@ export async function POST(req: Request) {
         : undefined,
     },
     include: { items: { include: { product: true } }, customer: true },
+  });
+
+  // Log activity: sales order created
+  await logActivity({
+    prisma,
+    module: 'SO',
+    entityType: 'sales_order',
+    entityId: order.id,
+    srplId: order.srplId || null,
+    action: 'create',
+    description: `Sales Order ${order.orderNumber} created for ${order.customer.companyName}`,
+    metadata: {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      customerId: order.customerId,
+      itemCount: order.items.length,
+    },
+    performedById: auth.userId || null,
   });
 
   return NextResponse.json(order, { status: 201 });

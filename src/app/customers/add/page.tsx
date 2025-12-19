@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
 
 function AddCustomerForm() {
   const [customerType, setCustomerType] = useState('domestic');
@@ -121,18 +122,20 @@ function AddCustomerForm() {
           {customerId ? 'Update the details for this customer.' : 'Enter the details for the new customer.'}
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer Information</CardTitle>
-          <CardDescription>Select customer type and fill in the details below.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-          <form className="space-y-8" onSubmit={handleSubmit}>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Customer Information</CardTitle>
+            <CardDescription>Select customer type and fill in the details below.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+            <form className="space-y-8" onSubmit={handleSubmit}>
             <div>
               <Label className="font-medium">Customer Type</Label>
               <RadioGroup
@@ -291,6 +294,13 @@ function AddCustomerForm() {
           )}
         </CardContent>
       </Card>
+
+      {customerId && (
+        <div className="lg:col-span-1">
+          <ActivityTimeline entityType="customer" entityId={customerId} />
+        </div>
+      )}
+      </div>
     </div>
   );
 }

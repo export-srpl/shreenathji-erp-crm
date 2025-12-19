@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SalesDocumentForm } from '@/components/sales/sales-document-form';
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, FileDown, Pencil, Eye, Loader2 } from 'lucide-react';
 import type { SalesOrder } from '@/types';
@@ -124,11 +125,18 @@ export default function ViewSalesOrderPage() {
             </Button>
         </div>
       </div>
-      <Card className="flex flex-col">
-        <CardContent className="flex-grow p-6">
-            <SalesDocumentForm documentType="Sales Order" existingDocument={documentData} isReadOnly={true} />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card className="flex flex-col">
+            <CardContent className="flex-grow p-6">
+              <SalesDocumentForm documentType="Sales Order" existingDocument={documentData} isReadOnly={true} />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:col-span-1">
+          <ActivityTimeline entityType="sales_order" entityId={id} />
+        </div>
+      </div>
     </div>
   );
 }

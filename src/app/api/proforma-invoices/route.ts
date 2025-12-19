@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
+import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/proforma-invoices - list proforma invoices with customer
 export async function GET() {
@@ -42,7 +43,25 @@ export async function POST(req: Request) {
           }
         : undefined,
     },
-    include: { items: true },
+    include: { items: true, customer: true },
+  });
+
+  // Log activity: proforma invoice created
+  await logActivity({
+    prisma,
+    module: 'PI',
+    entityType: 'proforma_invoice',
+    entityId: proforma.id,
+    srplId: proforma.srplId || null,
+    action: 'create',
+    description: `Proforma Invoice ${proforma.proformaNumber} created for ${proforma.customer.companyName}`,
+    metadata: {
+      proformaNumber: proforma.proformaNumber,
+      status: proforma.status,
+      customerId: proforma.customerId,
+      itemCount: proforma.items.length,
+    },
+    performedById: auth.userId || null,
   });
 
   return NextResponse.json(proforma, { status: 201 });

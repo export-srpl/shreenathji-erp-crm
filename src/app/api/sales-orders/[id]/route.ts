@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
-import { salesOrderUpdateSchema, validateInput } from '@/lib/validation';
+import { logActivity } from '@/lib/activity-logger';
 
 type Params = {
   params: { id: string };
@@ -12,11 +12,11 @@ export async function GET(_req: Request, { params }: Params) {
   const prisma = await getPrismaClient();
   const order = await prisma.salesOrder.findUnique({
     where: { id: params.id },
-    include: { items: { include: { product: true } }, customer: true },
+    include: { items: { include: { product: true } }, customer: true, quote: true, salesRep: true },
   });
 
   if (!order) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
   }
 
   return NextResponse.json(order);
@@ -30,55 +30,57 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const prisma = await getPrismaClient();
-  const rawBody = await req.json();
-
-  const normalized = {
-    status: rawBody.status,
-    notes: rawBody.notes,
-    expectedShip: rawBody.expectedShip || null,
-    items: Array.isArray(rawBody.items)
-      ? rawBody.items.map((item: any) => ({
-          productId: item.productId,
-          quantity: Number(item.quantity ?? item.qty ?? 0),
-          unitPrice: Number(item.unitPrice ?? item.rate ?? 0),
-          discountPct: item.discountPct ?? 0,
-        }))
-      : undefined,
-  };
-
-  const validation = validateInput(salesOrderUpdateSchema, normalized);
-  if (!validation.success) {
-    return NextResponse.json(
-      {
-        error: 'Validation failed',
-        details: validation.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
-      },
-      { status: 400 },
-    );
-  }
-
-  const data = validation.data;
+  const body = await req.json();
 
   try {
+    // Load existing order for diffing
+    const existing = await prisma.salesOrder.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
+    }
+
+    const updateData: any = {};
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.expectedShip !== undefined) {
+      updateData.expectedShip = body.expectedShip ? new Date(body.expectedShip) : null;
+    }
+
     const updated = await prisma.salesOrder.update({
       where: { id: params.id },
-      data: {
-        status: data.status,
-        notes: data.notes,
-        expectedShip: data.expectedShip ? new Date(data.expectedShip) : undefined,
-        items: data.items
-          ? {
-              deleteMany: { salesOrderId: params.id },
-              create: data.items.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discountPct: item.discountPct ?? 0,
-              })),
-            }
-          : undefined,
+      data: updateData,
+      include: { items: { include: { product: true } }, customer: true, quote: true, salesRep: true },
+    });
+
+    // Determine key changes for activity log
+    const changes: Record<string, { old: any; new: any }> = {};
+    if (body.status !== undefined && body.status !== existing.status) {
+      changes.status = { old: existing.status, new: body.status };
+    }
+
+    // Log activity: sales order updated
+    await logActivity({
+      prisma,
+      module: 'SO',
+      entityType: 'sales_order',
+      entityId: params.id,
+      srplId: existing.srplId || null,
+      action: Object.keys(changes).includes('status') ? 'stage_change' : 'update',
+      field: Object.keys(changes).includes('status') ? 'status' : null,
+      oldValue: Object.keys(changes).includes('status') ? changes.status.old : null,
+      newValue: Object.keys(changes).includes('status') ? changes.status.new : null,
+      description: Object.keys(changes).includes('status')
+        ? `Sales Order status changed from "${changes.status.old}" to "${changes.status.new}"`
+        : `Sales Order ${existing.orderNumber} updated`,
+      metadata: {
+        orderNumber: existing.orderNumber,
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+        itemCount: updated.items.length,
       },
-      include: { items: { include: { product: true } }, customer: true },
+      performedById: auth.userId || null,
     });
 
     return NextResponse.json(updated);
@@ -87,5 +89,3 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Failed to update sales order' }, { status: 500 });
   }
 }
-
-

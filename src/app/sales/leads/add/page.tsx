@@ -16,6 +16,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { countries } from '@/lib/countries';
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
+import { DuplicateWarningDialog } from '@/components/hygiene/duplicate-warning-dialog';
 
 const leadSources = ['Website', 'Referral', 'Exhibition', 'Cold Call', 'IndiaMART', 'Other'];
 const leadStatuses = ['New', 'Contacted', 'Qualified', 'Disqualified', 'Converted'];
@@ -51,6 +53,9 @@ function LeadForm() {
   const [gstNumber, setGstNumber] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [duplicateWarningOpen, setDuplicateWarningOpen] = useState(false);
+  const [duplicateMatches, setDuplicateMatches] = useState<any[]>([]);
+  const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
 
   const isAdmin = currentUserRole === 'admin';
   const isSalesPerson = currentUserRole === 'sales';
@@ -375,8 +380,29 @@ function LeadForm() {
     }
   };
 
+  const handleProceedWithDuplicates = () => {
+    setDuplicateWarningOpen(false);
+    if (pendingSubmit) {
+      pendingSubmit();
+      setPendingSubmit(null);
+    }
+  };
+
+  const handleCancelDuplicates = () => {
+    setDuplicateWarningOpen(false);
+    setDuplicateMatches([]);
+    setPendingSubmit(null);
+  };
+
   return (
     <div>
+      <DuplicateWarningDialog
+        open={duplicateWarningOpen}
+        onOpenChange={setDuplicateWarningOpen}
+        duplicates={duplicateMatches}
+        onProceed={handleProceedWithDuplicates}
+        onCancel={handleCancelDuplicates}
+      />
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
           {leadId ? 'Edit Lead' : 'Add New Lead'}
@@ -385,13 +411,15 @@ function LeadForm() {
           {leadId ? 'Update the details for this sales lead.' : 'Enter the details for the new sales lead.'}
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Lead Information</CardTitle>
-          <CardDescription>Fill in the form below to add a new lead to the pipeline.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-8" onSubmit={handleSubmit}>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Lead Information</CardTitle>
+            <CardDescription>Fill in the form below to add a new lead to the pipeline.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-8" onSubmit={handleSubmit}>
             
             {/* Lead Details */}
             <div className="space-y-4">
@@ -792,9 +820,16 @@ function LeadForm() {
                 </Button>
               </div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
+
+        {leadId && (
+          <div className="lg:col-span-1">
+            <ActivityTimeline entityType="lead" entityId={leadId} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

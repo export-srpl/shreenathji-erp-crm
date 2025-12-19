@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/quotes - list quotes with customer and items
 export async function GET() {
@@ -55,6 +56,24 @@ export async function POST(req: Request) {
         : undefined,
     },
     include: { items: { include: { product: true } }, customer: true, lead: true, salesRep: true },
+  });
+
+  // Log activity: quote created
+  await logActivity({
+    prisma,
+    module: 'QUOTE',
+    entityType: 'quote',
+    entityId: quote.id,
+    srplId: quote.srplId || null,
+    action: 'create',
+    description: `Quote ${quote.quoteNumber} created for ${quote.customer.companyName}`,
+    metadata: {
+      quoteNumber: quote.quoteNumber,
+      status: quote.status,
+      customerId: quote.customerId,
+      itemCount: quote.items.length,
+    },
+    performedById: auth.userId || null,
   });
 
   return NextResponse.json(quote, { status: 201 });

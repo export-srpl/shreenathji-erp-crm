@@ -2,6 +2,7 @@
 'use client';
 
 import { SalesDocumentForm } from "@/components/sales/sales-document-form";
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +63,14 @@ export default function EditSalesOrderPage() {
           <p className="text-muted-foreground">Update the details for this sales order.</p>
         </div>
       </div>
-      {documentData && <SalesDocumentForm documentType="Sales Order" existingDocument={documentData} />}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          {documentData && <SalesDocumentForm documentType="Sales Order" existingDocument={documentData} />}
+        </div>
+        <div className="lg:col-span-1">
+          <ActivityTimeline entityType="sales_order" entityId={id} />
+        </div>
+      </div>
     </div>
   );
 }

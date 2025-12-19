@@ -4,17 +4,32 @@ import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { leadSchema, validateInput } from '@/lib/validation';
 import { generateSRPLId } from '@/lib/srpl-id-generator';
+import { logActivity } from '@/lib/activity-logger';
+import { runAutomationRules } from '@/lib/automation-engine';
+import { getVisibilityFilter, hasPermission, getFieldPermissions, applyFieldPermissions } from '@/lib/rbac';
 
 // GET /api/leads - list leads
-export async function GET(_req: Request) {
+export async function GET(req: Request) {
   // SECURITY: Require authentication
   const authError = await requireAuth();
   if (authError) return authError;
 
   const prisma = await getPrismaClient();
+  const auth = await getAuthContext(req);
+
+  // Check view permission
+  const canView = await hasPermission(prisma, auth, 'lead', 'view', 'own');
+  if (!canView) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Get visibility filter based on user's scope
+  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'lead', 'own');
+  const fieldPerms = await getFieldPermissions(prisma, auth, 'lead');
 
   // NOTE: Prisma model uses "source" field; UI expects "leadSource" + "assignedSalesperson"
   const rawLeads = await prisma.lead.findMany({
+    where: visibilityFilter,
     select: {
       id: true,
       srplId: true,
@@ -32,17 +47,22 @@ export async function GET(_req: Request) {
       monthlyRequirement: true,
       followUpDate: true,
       createdAt: true,
+      ownerId: true,
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  const leads = rawLeads.map((lead: typeof rawLeads[number]) => ({
-    ...lead,
-    // Map Prisma "source" to frontend "leadSource"
-    leadSource: (lead as any).source ?? '',
-    // Placeholder for now; can be wired to owner/user later
-    assignedSalesperson: '',
-  }));
+  // Apply field-level permissions and map fields
+  const leads = rawLeads.map((lead: typeof rawLeads[number]) => {
+    const mapped = {
+      ...lead,
+      // Map Prisma "source" to frontend "leadSource"
+      leadSource: (lead as any).source ?? '',
+      assignedSalesperson: lead.ownerId || '',
+    };
+    // Strip protected fields
+    return applyFieldPermissions(mapped, fieldPerms, 'view');
+  });
 
   return NextResponse.json(leads);
 }
@@ -51,11 +71,34 @@ export async function GET(_req: Request) {
 export async function POST(req: Request) {
   const prisma = await getPrismaClient();
   const auth = await getAuthContext(req);
-  if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales'])) {
+  
+  // Check create permission
+  const canCreate = await hasPermission(prisma, auth, 'lead', 'create', 'own');
+  if (!canCreate) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await req.json();
+
+  // Get field permissions and strip protected fields from input
+  const fieldPerms = await getFieldPermissions(prisma, auth, 'lead');
+  const sanitizedBody = applyFieldPermissions(body, fieldPerms, 'edit');
+
+  // Check for duplicates before creating
+  const { checkDuplicates } = await import('@/lib/data-hygiene');
+  const duplicates = await checkDuplicates(prisma, {
+    companyName: body.companyName,
+    email: body.email,
+    phone: body.phone,
+    gstNo: body.gstNo,
+    vatNumber: body.vatNumber,
+  });
+
+  // If duplicates found, return them but allow creation (user can choose to proceed)
+  if (duplicates.length > 0) {
+    // Return duplicates in response but don't block creation
+    // Frontend can show a warning dialog
+  }
 
   // SECURITY: Validate and sanitize input
   const validationData = {
@@ -97,6 +140,9 @@ export async function POST(req: Request) {
     prisma,
   });
 
+  // Auto-assign to current user if no owner specified
+  const ownerId = sanitizedBody.ownerId || auth.userId || null;
+
   const lead = await prisma.lead.create({
     data: {
       srplId, // Auto-generated SRPL ID
@@ -117,8 +163,35 @@ export async function POST(req: Request) {
       monthlyRequirement: validatedData.monthlyRequirement,
       followUpDate: validatedData.followUpDate ? new Date(validatedData.followUpDate) : null,
       notes: validatedData.notes,
-      ownerId: body.ownerId ?? null,
+      ownerId: ownerId,
     },
+  });
+
+  // Log activity: lead created
+  await logActivity({
+    prisma,
+    module: 'LEAD',
+    entityType: 'lead',
+    entityId: lead.id,
+    srplId: lead.srplId || undefined,
+    action: 'create',
+    description: `Lead created: ${lead.companyName}`,
+    metadata: {
+      payload: validationData,
+    },
+    performedById: auth.userId,
+  });
+
+  // Run workflow automation for lead creation
+  await runAutomationRules({
+    prisma,
+    module: 'LEAD',
+    triggerType: 'on_create',
+    entityType: 'lead',
+    entityId: lead.id,
+    current: lead as any,
+    previous: null,
+    performedById: auth.userId,
   });
 
   return NextResponse.json(lead, { status: 201 });

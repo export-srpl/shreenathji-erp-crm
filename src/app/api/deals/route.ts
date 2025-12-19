@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logActivity } from '@/lib/activity-logger';
+import { runAutomationRules } from '@/lib/automation-engine';
 
 // GET /api/deals - list all deals
 export async function GET() {
@@ -92,6 +94,34 @@ export async function POST(req: Request) {
           },
         },
       },
+    });
+
+    // Log activity: deal created
+    await logActivity({
+      prisma,
+      module: 'DEAL',
+      entityType: 'deal',
+      entityId: deal.id,
+      srplId: (deal as any).srplId || undefined,
+      action: 'create',
+      description: `Deal created: ${deal.title}`,
+      metadata: {
+        customerId,
+        stage: deal.stage,
+        itemCount: items.length,
+      },
+      performedById: auth.userId,
+    });
+
+    await runAutomationRules({
+      prisma,
+      module: 'DEAL',
+      triggerType: 'on_create',
+      entityType: 'deal',
+      entityId: deal.id,
+      current: deal as any,
+      previous: null,
+      performedById: auth.userId,
     });
 
     return NextResponse.json(deal, { status: 201 });

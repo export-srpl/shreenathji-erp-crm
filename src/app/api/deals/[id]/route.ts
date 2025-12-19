@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { dealUpdateSchema, validateInput } from '@/lib/validation';
+import { logActivity } from '@/lib/activity-logger';
+import { runAutomationRules } from '@/lib/automation-engine';
 
 type Params = {
   params: { id: string };
@@ -38,6 +40,15 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const prisma = await getPrismaClient();
   const rawBody = await req.json();
+
+  // Load existing deal for diffing
+  const existing = await prisma.deal.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+  }
 
   const validation = validateInput(dealUpdateSchema, rawBody);
   if (!validation.success) {
@@ -81,6 +92,47 @@ export async function PATCH(req: Request, { params }: Params) {
         },
       },
     });
+
+    // Determine key changes for activity log
+    const changes: Record<string, { old: unknown; new: unknown }> = {};
+    if (title !== undefined && title !== existing.title) {
+      changes.title = { old: existing.title, new: title };
+    }
+    if (stage !== undefined && stage !== existing.stage) {
+      changes.stage = { old: existing.stage, new: stage };
+    }
+    if (customerId !== undefined && customerId !== existing.customerId) {
+      changes.customerId = { old: existing.customerId, new: customerId };
+    }
+    if (items !== undefined) {
+      changes.items = { old: 'updated', new: `items:${items.length}` };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      const changedFields = Object.keys(changes).join(', ');
+      await logActivity({
+        prisma,
+        module: 'DEAL',
+        entityType: 'deal',
+        entityId: deal.id,
+        srplId: (deal as any).srplId || undefined,
+        action: changes.stage ? 'stage_change' : 'update',
+        description: `Deal updated (${changedFields})`,
+        metadata: { changes },
+        performedById: auth.userId,
+      });
+
+      await runAutomationRules({
+        prisma,
+        module: 'DEAL',
+        triggerType: changes.stage ? 'on_stage_change' : 'on_update',
+        entityType: 'deal',
+        entityId: deal.id,
+        current: deal as any,
+        previous: existing as any,
+        performedById: auth.userId,
+      });
+    }
 
     return NextResponse.json(deal);
   } catch (error) {
