@@ -155,17 +155,42 @@ export async function POST(req: Request) {
   // SECURITY: Reset failed login attempts and update last login (parallel)
   const resetPromise = resetFailedLoginAttempts(user.id);
   
-  // Determine if we're in production
-  const isProduction = process.env.VERCEL_ENV === 'production' || 
-                      process.env.NODE_ENV === 'production' ||
-                      (process.env.VERCEL_URL && process.env.VERCEL_URL.startsWith('https://'));
+  // Determine if we're in production (ensure boolean)
+  const isProduction = Boolean(
+    process.env.VERCEL_ENV === 'production' || 
+    process.env.NODE_ENV === 'production' ||
+    (process.env.VERCEL_URL && process.env.VERCEL_URL.startsWith('https://'))
+  );
 
   // SECURITY: Use secure session token
   const crypto = await import('crypto');
   const sessionToken = crypto.randomBytes(32).toString('hex');
   const sessionExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-  // Create session and reset attempts in parallel
+  // Clean up old sessions for this user (keep max 3 most recent sessions)
+  // This prevents session bloat and improves security
+  const cleanupOldSessions = prisma.session.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+    take: 3, // Keep only the 3 most recent sessions
+  }).then(async (recentSessions: Array<{ id: string }>) => {
+    if (recentSessions.length >= 3) {
+      // Delete all sessions except the 3 most recent
+      const keepIds = recentSessions.map((s: { id: string }) => s.id);
+      await prisma.session.deleteMany({
+        where: {
+          userId: user.id,
+          id: { notIn: keepIds },
+        },
+      });
+    }
+  }).catch((error: any) => {
+    console.error('Failed to cleanup old sessions:', error);
+    // Non-blocking - continue with login even if cleanup fails
+  });
+
+  // Create session, reset attempts, and cleanup old sessions in parallel
   const [session] = await Promise.all([
     prisma.session.create({
       data: {
@@ -177,6 +202,7 @@ export async function POST(req: Request) {
       },
     }),
     resetPromise,
+    cleanupOldSessions,
   ]);
 
   // Check if 2FA is enabled
