@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-logger';
-import { generateSRPLId } from '@/lib/srpl-id';
+import { generateSRPLId } from '@/lib/srpl-id-generator';
 import { checkDuplicates } from '@/lib/data-hygiene';
 import { leadSchema, validateInput } from '@/lib/validation';
 
