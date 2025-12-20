@@ -28,10 +28,19 @@ export async function hasPermission(
 
   const p: any = prisma;
 
+  // For users with salesScope, check permissions based on their sales scope role
+  // Map salesScope to role for permission checking
+  let permissionRole = auth.role;
+  if (auth.salesScope === 'export_sales') {
+    permissionRole = 'export_sales';
+  } else if (auth.salesScope === 'domestic_sales') {
+    permissionRole = 'domestic_sales';
+  }
+
   // Check role-based permissions
   const rolePerm = await p.rolePermission.findFirst({
     where: {
-      role: auth.role,
+      role: permissionRole,
       permission: {
         resource,
         action,
@@ -113,8 +122,8 @@ export async function getFieldPermissions(
 }
 
 /**
- * RBAC utility: Apply record-level visibility filter based on scope
- * Returns a Prisma where clause that filters records by owner/team
+ * RBAC utility: Apply record-level visibility filter based on scope and sales scope
+ * Returns a Prisma where clause that filters records by owner/team and country
  */
 export async function getVisibilityFilter(
   prisma: PrismaClient,
@@ -131,6 +140,25 @@ export async function getVisibilityFilter(
   if (auth.role === 'admin' || scope === 'all') {
     return {};
   }
+
+  // Get user's sales scope for country-based filtering
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { id: true, salesScope: true, managerId: true },
+  });
+
+  if (!user) return { id: 'impossible-id-that-will-never-match' };
+
+  // Build country filter based on sales scope
+  let countryFilter: any = {};
+  if (user.salesScope === 'domestic_sales') {
+    // Domestic sales users only see India records
+    countryFilter = { country: 'India' };
+  } else if (user.salesScope === 'export_sales') {
+    // Export sales users only see non-India records
+    countryFilter = { country: { not: 'India' } };
+  }
+  // If no salesScope, no country filtering (backward compatibility)
 
   // Get user's manager and team members for 'team' scope
   if (scope === 'team') {
@@ -156,17 +184,43 @@ export async function getVisibilityFilter(
     // Apply filter based on resource type
     switch (resource) {
       case 'lead':
-        return { ownerId: { in: teamMemberIds } };
+        return { 
+          ownerId: { in: teamMemberIds },
+          ...countryFilter,
+        };
       case 'deal':
-        // Deal doesn't have ownerId, but we can filter via customer's owner if needed
-        // For now, return all (can be enhanced later)
+        // Filter deals via customer's country
+        if (Object.keys(countryFilter).length > 0) {
+          return {
+            customer: {
+              ...countryFilter,
+            },
+          };
+        }
         return {};
+      case 'customer':
+        return countryFilter;
       case 'quote':
-        return { salesRepId: { in: teamMemberIds } };
+        return { 
+          salesRepId: { in: teamMemberIds },
+          ...(Object.keys(countryFilter).length > 0 ? {
+            customer: countryFilter,
+          } : {}),
+        };
       case 'sales_order':
-        return { salesRepId: { in: teamMemberIds } };
+        return { 
+          salesRepId: { in: teamMemberIds },
+          ...(Object.keys(countryFilter).length > 0 ? {
+            customer: countryFilter,
+          } : {}),
+        };
       case 'invoice':
         // Invoice might not have direct salesRepId, but can trace via salesOrder
+        if (Object.keys(countryFilter).length > 0) {
+          return {
+            customer: countryFilter,
+          };
+        }
         return {};
       default:
         return {};
@@ -176,13 +230,41 @@ export async function getVisibilityFilter(
   // 'own' scope: only records owned by user
   switch (resource) {
     case 'lead':
-      return { ownerId: auth.userId };
+      return { 
+        ownerId: auth.userId,
+        ...countryFilter,
+      };
+    case 'customer':
+      return countryFilter;
+    case 'deal':
+      // Filter deals via customer's country
+      if (Object.keys(countryFilter).length > 0) {
+        return {
+          customer: countryFilter,
+        };
+      }
+      return {};
     case 'quote':
-      return { salesRepId: auth.userId };
+      return { 
+        salesRepId: auth.userId,
+        ...(Object.keys(countryFilter).length > 0 ? {
+          customer: countryFilter,
+        } : {}),
+      };
     case 'sales_order':
-      return { salesRepId: auth.userId };
+      return { 
+        salesRepId: auth.userId,
+        ...(Object.keys(countryFilter).length > 0 ? {
+          customer: countryFilter,
+        } : {}),
+      };
     case 'invoice':
       // Can trace via salesOrder if needed
+      if (Object.keys(countryFilter).length > 0) {
+        return {
+          customer: countryFilter,
+        };
+      }
       return {};
     default:
       return {};

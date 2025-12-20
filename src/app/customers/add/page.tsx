@@ -12,11 +12,23 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { ActivityTimeline } from '@/components/activity/activity-timeline';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+// Export currencies for international customers
+const exportCurrencies = ['USD', 'EUR', 'CNY', 'JPY', 'GBP', 'CAD', 'AUD', 'CHF', 'HKD', 'NZD', 'INR', 'RUB'] as const;
 
 function AddCustomerForm() {
   const [customerType, setCustomerType] = useState('domestic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [country, setCountry] = useState('India');
+  const [currency, setCurrency] = useState<string>('USD');
+  const [currencyManuallySet, setCurrencyManuallySet] = useState(false);
   const [initialValues, setInitialValues] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -28,10 +40,30 @@ function AddCustomerForm() {
   useEffect(() => {
     if (customerType === 'domestic') {
       setCountry('India');
+      if (!currencyManuallySet) {
+        setCurrency('INR');
+      }
     } else {
-      setCountry('');
+      // Don't reset country if editing and country is already set
+      if (!initialValues?.country || initialValues.country === 'India') {
+        setCountry('');
+      }
+      if (!currencyManuallySet) {
+        setCurrency('USD');
+      }
     }
-  }, [customerType]);
+  }, [customerType, currencyManuallySet, initialValues]);
+
+  // Update currency when country changes (unless manually set)
+  useEffect(() => {
+    if (!currencyManuallySet) {
+      if (country === 'India') {
+        setCurrency('INR');
+      } else if (country && country.trim() !== '') {
+        setCurrency('USD');
+      }
+    }
+  }, [country, currencyManuallySet]);
 
   // If editing, load existing customer
   useEffect(() => {
@@ -46,12 +78,23 @@ function AddCustomerForm() {
         setInitialValues(customer);
         setCustomerType(customer.customerType || 'domestic');
         setCountry(customer.country || (customer.customerType === 'domestic' ? 'India' : ''));
+        if (customer.currency) {
+          setCurrency(customer.currency);
+          setCurrencyManuallySet(true);
+        } else {
+          // Set default based on country
+          if (customer.country === 'India') {
+            setCurrency('INR');
+          } else if (customer.country && customer.country !== 'India') {
+            setCurrency('USD');
+          }
+        }
       } catch (error) {
         console.error(error);
         toast({
           variant: 'destructive',
-          title: 'Failed to load customer',
-          description: 'Could not load the customer for editing.',
+          title: 'Failed to load company',
+          description: 'Could not load the company for editing.',
         });
       } finally {
         setIsLoading(false);
@@ -74,6 +117,7 @@ function AddCustomerForm() {
       state: formData.get('state') as string,
       city: formData.get('cityState') as string,
       country: country,
+      currency: country !== 'India' ? currency : null, // Only set currency for non-India customers
       contactName: formData.get('contactName') as string,
       contactEmail: formData.get('contactEmail') as string,
       contactTitle: formData.get('contactDesignation') as string,
@@ -116,7 +160,7 @@ function AddCustomerForm() {
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          {customerId ? 'Edit Customer' : 'Add New Customer'}
+          {customerId ? 'Edit Company' : 'Add New Company'}
         </h1>
         <p className="text-muted-foreground">
           {customerId ? 'Update the details for this customer.' : 'Enter the details for the new customer.'}
@@ -126,7 +170,7 @@ function AddCustomerForm() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
+            <CardTitle>Company Information</CardTitle>
             <CardDescription>Select customer type and fill in the details below.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -137,7 +181,7 @@ function AddCustomerForm() {
             ) : (
             <form className="space-y-8" onSubmit={handleSubmit}>
             <div>
-              <Label className="font-medium">Customer Type</Label>
+              <Label className="font-medium">Company Type</Label>
               <RadioGroup
                 value={customerType}
                 onValueChange={setCustomerType}
@@ -231,12 +275,43 @@ function AddCustomerForm() {
                   id="country"
                   name="country"
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    setCurrencyManuallySet(false); // Reset manual flag when country changes
+                  }}
                   readOnly={customerType === 'domestic'}
                   placeholder="e.g. United States"
                 />
               </div>
             </div>
+
+            {/* Currency selection for international/export customers */}
+            {country && country !== 'India' && (
+              <div>
+                <Label htmlFor="currency">Currency</Label>
+                <Select
+                  value={currency}
+                  onValueChange={(value) => {
+                    setCurrency(value);
+                    setCurrencyManuallySet(true);
+                  }}
+                >
+                  <SelectTrigger id="currency">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {exportCurrencies.map((curr) => (
+                      <SelectItem key={curr} value={curr}>
+                        {curr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Default currency for export transactions. Defaults to USD for international customers.
+                </p>
+              </div>
+            )}
             
             <Separator />
             
@@ -287,7 +362,7 @@ function AddCustomerForm() {
             <div className="flex justify-end">
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmitting ? 'Saving...' : customerId ? 'Update Customer' : 'Save Customer'}
+                    {isSubmitting ? 'Saving...' : customerId ? 'Update Company' : 'Save Company'}
                 </Button>
             </div>
           </form>

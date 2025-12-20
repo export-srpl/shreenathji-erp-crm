@@ -83,6 +83,15 @@ export async function PATCH(req: Request, { params }: Params) {
       performedById: auth.userId || null,
     });
 
+    // Invalidate dispatch register cache if items or status changed
+    try {
+      const { invalidateDispatchCache } = await import('@/app/api/dispatch-register/route');
+      invalidateDispatchCache();
+    } catch (error) {
+      // Best-effort cache invalidation
+      console.warn('Failed to invalidate dispatch cache:', error);
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);

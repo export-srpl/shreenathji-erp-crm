@@ -105,7 +105,24 @@ export function LeadsTable() {
       }
     };
 
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const productsData = await res.json();
+          const mappedProducts = productsData.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.productName || '',
+          }));
+          setProducts(mappedProducts);
+        }
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+      }
+    };
+
     fetchLeads();
+    fetchProducts();
   }, [toast]);
 
   // Filter, search, and sort leads
@@ -305,11 +322,43 @@ export function LeadsTable() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {lead.productInterest ? (
-                          <Badge variant="outline" className="font-normal">
-                            {lead.productInterest}
-                          </Badge>
-                        ) : (
+                        {lead.productInterest ? (() => {
+                          try {
+                            const productData = JSON.parse(lead.productInterest);
+                            if (Array.isArray(productData) && productData.length > 0) {
+                              const productNames = productData
+                                .map((p: any) => {
+                                  const product = products.find(prod => prod.id === p.productId);
+                                  return product ? product.name : p.productId;
+                                })
+                                .filter(Boolean);
+                              return productNames.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {productNames.map((name: string, idx: number) => (
+                                    <Badge key={idx} variant="outline" className="font-normal text-xs">
+                                      {name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              );
+                            }
+                            // Fallback for old format (string)
+                            return (
+                              <Badge variant="outline" className="font-normal">
+                                {lead.productInterest}
+                              </Badge>
+                            );
+                          } catch {
+                            // If not JSON, display as-is
+                            return (
+                              <Badge variant="outline" className="font-normal">
+                                {lead.productInterest}
+                              </Badge>
+                            );
+                          }
+                        })() : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>

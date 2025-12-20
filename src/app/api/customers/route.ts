@@ -12,7 +12,14 @@ export async function GET(req: Request) {
   if (authError) return authError;
 
   const prisma = await getPrismaClient();
+  const auth = await getAuthContext(req);
+
+  // Get visibility filter based on user's scope (includes country filtering for salesScope)
+  const { getVisibilityFilter } = await import('@/lib/rbac');
+  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'customer', 'all');
+
   const customers = await prisma.customer.findMany({
+    where: visibilityFilter,
     select: {
       id: true,
       companyName: true,
@@ -27,6 +34,7 @@ export async function GET(req: Request) {
       state: true,
       city: true,
       gstNo: true,
+      currency: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'desc' },
@@ -39,11 +47,29 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const prisma = await getPrismaClient();
   const auth = await getAuthContext(req);
-  if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales'])) {
+  
+  // Check permission - allow admin or users with salesScope
+  const { hasPermission } = await import('@/lib/rbac');
+  const canCreate = auth.role === 'admin' || auth.salesScope === 'export_sales' || auth.salesScope === 'domestic_sales';
+  if (!canCreate || !auth.userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await req.json();
+
+  // Enforce country restriction based on salesScope
+  if (auth.salesScope === 'domestic_sales' && body.country !== 'India') {
+    return NextResponse.json(
+      { error: 'Domestic Sales users can only create companies for India' },
+      { status: 403 }
+    );
+  }
+  if (auth.salesScope === 'export_sales' && body.country === 'India') {
+    return NextResponse.json(
+      { error: 'Export Sales users can only create companies for countries other than India' },
+      { status: 403 }
+    );
+  }
 
   // SECURITY: Validate and sanitize input
   const validationData = {
@@ -59,6 +85,7 @@ export async function POST(req: Request) {
     contactEmail: body.contactPerson?.email,
     contactPhone: body.contactPerson?.phone,
     contactTitle: body.contactPerson?.designation,
+    currency: body.currency,
   };
 
   const validation = validateInput(customerSchema, validationData);
@@ -74,6 +101,12 @@ export async function POST(req: Request) {
 
   const validatedData = validation.data;
 
+  // Set default currency for non-India customers if not provided
+  let currencyValue = validatedData.currency;
+  if (!currencyValue && validatedData.country !== 'India') {
+    currencyValue = 'USD'; // Default to USD for export customers
+  }
+
   const customer = await prisma.customer.create({
     data: {
       companyName: validatedData.companyName,
@@ -88,6 +121,7 @@ export async function POST(req: Request) {
       contactEmail: validatedData.contactEmail,
       contactPhone: validatedData.contactPhone,
       contactTitle: validatedData.contactTitle,
+      currency: currencyValue,
     },
   });
 

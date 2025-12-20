@@ -70,6 +70,9 @@ export const leadUpdateSchema = leadSchema
   })
   .partial();
 
+// Export currencies for international customers
+export const exportCurrencies = ['USD', 'EUR', 'CNY', 'JPY', 'GBP', 'CAD', 'AUD', 'CHF', 'HKD', 'NZD', 'INR', 'RUB'] as const;
+
 // Customer validation (for create)
 export const customerSchema = z.object({
   companyName: z.string().min(1).max(200).trim(),
@@ -84,6 +87,7 @@ export const customerSchema = z.object({
   state: z.string().max(100).trim().optional().nullable(),
   city: z.string().max(100).trim().optional().nullable(),
   gstNo: z.string().max(50).trim().optional().nullable(),
+  currency: z.enum(exportCurrencies).optional().nullable(),
 });
 
 // Customer validation (for update - all fields optional)
@@ -151,6 +155,7 @@ export const userAdminUpdateSchema = z.object({
   email: emailSchema.optional(),
   role: z.enum(['Admin', 'Sales', 'Finance', 'User']).optional(),
   password: passwordSchema.optional(),
+  salesScope: z.enum(['export_sales', 'domestic_sales']).optional().nullable(),
 });
 
 /**

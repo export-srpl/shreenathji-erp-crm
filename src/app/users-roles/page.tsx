@@ -62,6 +62,7 @@ export default function UsersRolesPage() {
           name: user.name,
           email: user.email,
           role: user.role,
+          salesScope: (user as any).salesScope || null,
           // Password only for new users or if explicitly provided
           ...(isEdit ? {} : { password: 'TempPassword123!' }), // Default password for new users
         }),
@@ -183,6 +184,7 @@ export default function UsersRolesPage() {
                 <TableRow>
                   <TableHead>User</TableHead>
                   <TableHead>Role / Department</TableHead>
+                  <TableHead>Sales Scope</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -204,6 +206,15 @@ export default function UsersRolesPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{user.role}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {(user as any).salesScope ? (
+                      <Badge variant="secondary">
+                        {(user as any).salesScope === 'export_sales' ? 'Export Sales' : 'Domestic Sales'}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
                   </TableCell>
                    <TableCell>
                      <div className="flex items-center gap-2">

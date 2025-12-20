@@ -39,30 +39,55 @@ const defaultPermissions = [
   { resource: 'invoice', action: 'edit_all', scope: 'all', role: 'admin', description: 'Admin can edit all invoices' },
   { resource: 'invoice', action: 'delete', scope: 'all', role: 'admin', description: 'Admin can delete invoices' },
 
-  // Sales: Own records + team visibility
-  { resource: 'lead', action: 'view', scope: 'own', role: 'sales', description: 'Sales can view own leads' },
-  { resource: 'lead', action: 'view', scope: 'team', role: 'sales', description: 'Sales can view team leads' },
-  { resource: 'lead', action: 'create', scope: 'own', role: 'sales', description: 'Sales can create leads' },
-  { resource: 'lead', action: 'update', scope: 'own', role: 'sales', description: 'Sales can update own leads' },
+  // Export Sales: Manage export business (non-India records)
+  { resource: 'lead', action: 'view', scope: 'own', role: 'export_sales', description: 'Export Sales can view own leads' },
+  { resource: 'lead', action: 'view', scope: 'team', role: 'export_sales', description: 'Export Sales can view team leads' },
+  { resource: 'lead', action: 'create', scope: 'own', role: 'export_sales', description: 'Export Sales can create leads' },
+  { resource: 'lead', action: 'update', scope: 'own', role: 'export_sales', description: 'Export Sales can update own leads' },
   
-  { resource: 'deal', action: 'view', scope: 'own', role: 'sales', description: 'Sales can view own deals' },
-  { resource: 'deal', action: 'view', scope: 'team', role: 'sales', description: 'Sales can view team deals' },
-  { resource: 'deal', action: 'create', scope: 'own', role: 'sales', description: 'Sales can create deals' },
-  { resource: 'deal', action: 'update', scope: 'own', role: 'sales', description: 'Sales can update own deals' },
+  { resource: 'deal', action: 'view', scope: 'own', role: 'export_sales', description: 'Export Sales can view own deals' },
+  { resource: 'deal', action: 'view', scope: 'team', role: 'export_sales', description: 'Export Sales can view team deals' },
+  { resource: 'deal', action: 'create', scope: 'own', role: 'export_sales', description: 'Export Sales can create deals' },
+  { resource: 'deal', action: 'update', scope: 'own', role: 'export_sales', description: 'Export Sales can update own deals' },
   
-  { resource: 'quote', action: 'view', scope: 'own', role: 'sales', description: 'Sales can view own quotes' },
-  { resource: 'quote', action: 'view', scope: 'team', role: 'sales', description: 'Sales can view team quotes' },
-  { resource: 'quote', action: 'create', scope: 'own', role: 'sales', description: 'Sales can create quotes' },
-  { resource: 'quote', action: 'update', scope: 'own', role: 'sales', description: 'Sales can update own quotes' },
+  { resource: 'quote', action: 'view', scope: 'own', role: 'export_sales', description: 'Export Sales can view own quotes' },
+  { resource: 'quote', action: 'view', scope: 'team', role: 'export_sales', description: 'Export Sales can view team quotes' },
+  { resource: 'quote', action: 'create', scope: 'own', role: 'export_sales', description: 'Export Sales can create quotes' },
+  { resource: 'quote', action: 'update', scope: 'own', role: 'export_sales', description: 'Export Sales can update own quotes' },
   
-  { resource: 'customer', action: 'view', scope: 'all', role: 'sales', description: 'Sales can view all customers' },
-  { resource: 'customer', action: 'create', scope: 'own', role: 'sales', description: 'Sales can create customers' },
-  { resource: 'customer', action: 'update', scope: 'own', role: 'sales', description: 'Sales can update own customers' },
+  { resource: 'customer', action: 'view', scope: 'all', role: 'export_sales', description: 'Export Sales can view export customers' },
+  { resource: 'customer', action: 'create', scope: 'own', role: 'export_sales', description: 'Export Sales can create customers' },
+  { resource: 'customer', action: 'update', scope: 'own', role: 'export_sales', description: 'Export Sales can update own customers' },
   
-  { resource: 'product', action: 'view', scope: 'all', role: 'sales', description: 'Sales can view all products' },
+  { resource: 'product', action: 'view', scope: 'all', role: 'export_sales', description: 'Export Sales can view all products' },
   
-  { resource: 'invoice', action: 'view', scope: 'own', role: 'sales', description: 'Sales can view own invoices' },
-  { resource: 'invoice', action: 'view', scope: 'team', role: 'sales', description: 'Sales can view team invoices' },
+  { resource: 'invoice', action: 'view', scope: 'own', role: 'export_sales', description: 'Export Sales can view own invoices' },
+  { resource: 'invoice', action: 'view', scope: 'team', role: 'export_sales', description: 'Export Sales can view team invoices' },
+
+  // Domestic Sales: Manage domestic market (India records)
+  { resource: 'lead', action: 'view', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can view own leads' },
+  { resource: 'lead', action: 'view', scope: 'team', role: 'domestic_sales', description: 'Domestic Sales can view team leads' },
+  { resource: 'lead', action: 'create', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can create leads' },
+  { resource: 'lead', action: 'update', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can update own leads' },
+  
+  { resource: 'deal', action: 'view', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can view own deals' },
+  { resource: 'deal', action: 'view', scope: 'team', role: 'domestic_sales', description: 'Domestic Sales can view team deals' },
+  { resource: 'deal', action: 'create', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can create deals' },
+  { resource: 'deal', action: 'update', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can update own deals' },
+  
+  { resource: 'quote', action: 'view', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can view own quotes' },
+  { resource: 'quote', action: 'view', scope: 'team', role: 'domestic_sales', description: 'Domestic Sales can view team quotes' },
+  { resource: 'quote', action: 'create', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can create quotes' },
+  { resource: 'quote', action: 'update', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can update own quotes' },
+  
+  { resource: 'customer', action: 'view', scope: 'all', role: 'domestic_sales', description: 'Domestic Sales can view domestic customers' },
+  { resource: 'customer', action: 'create', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can create customers' },
+  { resource: 'customer', action: 'update', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can update own customers' },
+  
+  { resource: 'product', action: 'view', scope: 'all', role: 'domestic_sales', description: 'Domestic Sales can view all products' },
+  
+  { resource: 'invoice', action: 'view', scope: 'own', role: 'domestic_sales', description: 'Domestic Sales can view own invoices' },
+  { resource: 'invoice', action: 'view', scope: 'team', role: 'domestic_sales', description: 'Domestic Sales can view team invoices' },
 
   // Finance: View-only for most, full access to invoices
   { resource: 'lead', action: 'view', scope: 'all', role: 'finance', description: 'Finance can view all leads' },
@@ -75,11 +100,15 @@ const defaultPermissions = [
   { resource: 'invoice', action: 'edit_all', scope: 'all', role: 'finance', description: 'Finance can edit all invoices' },
 
   // Field-level permissions: Protect sensitive fields
-  { resource: 'product', action: 'view', scope: 'all', role: 'sales', field: 'unitPrice', description: 'Sales can view product prices' },
-  { resource: 'product', action: 'update', scope: 'all', role: 'sales', field: 'unitPrice', description: 'Sales cannot edit product prices' },
+  { resource: 'product', action: 'view', scope: 'all', role: 'export_sales', field: 'unitPrice', description: 'Export Sales can view product prices' },
+  { resource: 'product', action: 'update', scope: 'all', role: 'export_sales', field: 'unitPrice', description: 'Export Sales cannot edit product prices' },
+  { resource: 'product', action: 'view', scope: 'all', role: 'domestic_sales', field: 'unitPrice', description: 'Domestic Sales can view product prices' },
+  { resource: 'product', action: 'update', scope: 'all', role: 'domestic_sales', field: 'unitPrice', description: 'Domestic Sales cannot edit product prices' },
   
-  { resource: 'customer', action: 'view', scope: 'all', role: 'sales', field: 'gstNo', description: 'Sales can view GST numbers' },
-  { resource: 'customer', action: 'update', scope: 'all', role: 'sales', field: 'gstNo', description: 'Sales can edit GST numbers' },
+  { resource: 'customer', action: 'view', scope: 'all', role: 'export_sales', field: 'gstNo', description: 'Export Sales can view GST numbers' },
+  { resource: 'customer', action: 'update', scope: 'all', role: 'export_sales', field: 'gstNo', description: 'Export Sales can edit GST numbers' },
+  { resource: 'customer', action: 'view', scope: 'all', role: 'domestic_sales', field: 'gstNo', description: 'Domestic Sales can view GST numbers' },
+  { resource: 'customer', action: 'update', scope: 'all', role: 'domestic_sales', field: 'gstNo', description: 'Domestic Sales can edit GST numbers' },
   
   { resource: 'lead', action: 'view', scope: 'all', role: 'finance', field: 'gstNo', description: 'Finance can view GST numbers' },
   { resource: 'lead', action: 'view', scope: 'all', role: 'finance', field: 'vatNumber', description: 'Finance can view VAT numbers' },

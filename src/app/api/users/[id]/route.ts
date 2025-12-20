@@ -25,6 +25,7 @@ export async function GET(_req: Request, { params }: Params) {
       status: 'Active' as const,
       avatarUrl: undefined,
       moduleAccess: {},
+      salesScope: (user as any).salesScope || null,
     });
   } catch (error) {
     console.error('Failed to fetch user:', error);
@@ -53,7 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const { name, email, role, password } = validation.data;
+  const { name, email, role, password, salesScope } = validation.data as any;
 
   try {
     const existing = await prisma.user.findUnique({ where: { id: params.id } });
@@ -84,6 +85,7 @@ export async function PATCH(req: Request, { params }: Params) {
       email?: string;
       role?: string;
       passwordHash?: string;
+      salesScope?: string | null;
     } = {};
 
     if (name !== undefined) updateData.name = name || null;
@@ -95,6 +97,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (password) {
       const bcrypt = await import('bcryptjs');
       updateData.passwordHash = await bcrypt.hash(password, 12);
+    }
+    if (salesScope !== undefined) {
+      updateData.salesScope = salesScope || null;
     }
 
     const user = await prisma.user.update({

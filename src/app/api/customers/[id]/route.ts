@@ -64,6 +64,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (data.contactEmail !== undefined) updateData.contactEmail = data.contactEmail;
     if (data.contactPhone !== undefined) updateData.contactPhone = data.contactPhone;
     if (data.contactTitle !== undefined) updateData.contactTitle = data.contactTitle;
+    if (data.currency !== undefined) updateData.currency = data.currency;
 
     const updated = await prisma.customer.update({
       where: { id: params.id },

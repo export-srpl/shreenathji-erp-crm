@@ -8,6 +8,7 @@ export interface AuthContext {
   firebaseUid: string | null;
   email: string | null;
   role: AppRole;
+  salesScope?: string | null; // 'export_sales' or 'domestic_sales'
 }
 
 /**
@@ -88,6 +89,7 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
       firebaseUid: user.firebaseUid,
       email: user.email,
       role: (user.role as AppRole) || 'user',
+      salesScope: (user as any).salesScope || null,
     };
   } catch (error) {
     console.error('Auth context error:', error);

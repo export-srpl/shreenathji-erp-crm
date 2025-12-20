@@ -44,5 +44,6 @@ export async function GET(req: Request) {
     role: user.role,
     avatarUrl: user.avatarUrl,
     is2FAEnabled: user.is2FAEnabled || false,
+    salesScope: (user as any).salesScope || null,
   });
 }

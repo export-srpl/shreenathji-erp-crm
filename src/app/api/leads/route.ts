@@ -23,8 +23,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Get visibility filter based on user's scope
-  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'lead', 'own');
+  // Get visibility filter based on user's scope (includes country filtering for salesScope)
+  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'lead', 'team'); // Use 'team' to see team + own
   const fieldPerms = await getFieldPermissions(prisma, auth, 'lead');
 
   // NOTE: Prisma model uses "source" field; UI expects "leadSource" + "assignedSalesperson"
@@ -133,6 +133,20 @@ export async function POST(req: Request) {
   }
 
   const validatedData = validation.data;
+
+  // Enforce country restriction based on salesScope
+  if (auth.salesScope === 'domestic_sales' && validatedData.country !== 'India') {
+    return NextResponse.json(
+      { error: 'Domestic Sales users can only create leads for India' },
+      { status: 403 }
+    );
+  }
+  if (auth.salesScope === 'export_sales' && validatedData.country === 'India') {
+    return NextResponse.json(
+      { error: 'Export Sales users can only create leads for countries other than India' },
+      { status: 403 }
+    );
+  }
 
   // Generate SRPL ID atomically
   const srplId = await generateSRPLId({

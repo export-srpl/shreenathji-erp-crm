@@ -36,6 +36,7 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
+  const [salesScope, setSalesScope] = useState<string>('');
   const [moduleAccess, setModuleAccess] = useState<Record<string, boolean>>({});
 
   const isEditMode = !!userToEdit;
@@ -46,11 +47,13 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
             setName(userToEdit.name);
             setEmail(userToEdit.email);
             setRole(userToEdit.role);
+            setSalesScope((userToEdit as any).salesScope || '');
             setModuleAccess(userToEdit.moduleAccess || {});
         } else {
             setName('');
             setEmail('');
             setRole('');
+            setSalesScope('');
             setModuleAccess(
               modules.reduce((acc, module) => ({ ...acc, [module]: false }), {})
             );
@@ -75,7 +78,7 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
         return;
     }
 
-    const userData = { name, email, role, moduleAccess };
+    const userData = { name, email, role, salesScope: salesScope || null, moduleAccess };
 
     if (isEditMode && userToEdit) {
       onUserSaved({ ...userToEdit, ...userData });
@@ -141,6 +144,24 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
                     ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="salesScope" className="text-right">
+                Sales Scope
+              </Label>
+              <Select onValueChange={setSalesScope} value={salesScope}>
+                <SelectTrigger id="salesScope" className="col-span-3">
+                    <SelectValue placeholder="Select sales scope (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="export_sales">Export Sales</SelectItem>
+                    <SelectItem value="domestic_sales">Domestic Sales</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="col-span-3 col-start-2 text-xs text-muted-foreground mt-1">
+                Export Sales: Manage non-India business | Domestic Sales: Manage India business
+              </p>
             </div>
             <Separator className="my-2" />
              <div>

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { AddDealDialog } from './add-deal-dialog';
 
 const stages: DealStage[] = [
   'Prospecting',
@@ -47,9 +48,13 @@ type Deal = {
 const DealCard = ({
   deal,
   onStageChange,
+  onEdit,
+  onDelete,
 }: {
   deal: Deal;
   onStageChange: (dealId: string, newStage: DealStage) => void;
+  onEdit: (dealId: string) => void;
+  onDelete: (dealId: string) => void;
 }) => {
   const totalQuantity = deal.items.reduce((sum, item) => sum + Number(item.quantity), 0);
 
@@ -67,6 +72,15 @@ const DealCard = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onEdit(deal.id)}>
+                Edit Deal
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete(deal.id)} className="text-red-600">
+                Delete Deal
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Change Stage</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {stages
@@ -107,10 +121,14 @@ const KanbanColumn = ({
   stage,
   deals,
   onStageChange,
+  onEdit,
+  onDelete,
 }: {
   stage: DealStage;
   deals: Deal[];
   onStageChange: (dealId: string, newStage: DealStage) => void;
+  onEdit: (dealId: string) => void;
+  onDelete: (dealId: string) => void;
 }) => {
   const stageConfig: Record<DealStage, { color: string }> = {
     Prospecting: { color: 'bg-gray-500' },
@@ -136,7 +154,7 @@ const KanbanColumn = ({
       </div>
       <div className="p-2 h-full bg-muted/60 rounded-b-lg">
         {deals.map((deal) => (
-          <DealCard key={deal.id} deal={deal} onStageChange={onStageChange} />
+          <DealCard key={deal.id} deal={deal} onStageChange={onStageChange} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -147,6 +165,8 @@ export function DealsKanbanBoard() {
   const { toast } = useToast();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [dealToEdit, setDealToEdit] = useState<Deal | null>(null);
 
   useEffect(() => {
     const fetchDeals = async () => {
@@ -202,6 +222,70 @@ export function DealsKanbanBoard() {
     }
   };
 
+  const handleEdit = (dealId: string) => {
+    const deal = deals.find((d) => d.id === dealId);
+    if (deal) {
+      setDealToEdit({
+        id: deal.id,
+        title: deal.title,
+        stage: deal.stage,
+        customerId: deal.customer.id,
+        items: deal.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          product: item.product,
+        })),
+      });
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleDelete = async (dealId: string) => {
+    if (!confirm('Are you sure you want to delete this deal? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) throw new Error('Failed to delete deal');
+
+      // Remove from local state
+      setDeals((prev) => prev.filter((deal) => deal.id !== dealId));
+
+      toast({
+        title: 'Deal Deleted',
+        description: 'The deal has been successfully deleted.',
+      });
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+        description: 'Could not delete deal.',
+      });
+    }
+  };
+
+  const handleDealSaved = () => {
+    setIsEditDialogOpen(false);
+    setDealToEdit(null);
+    // Refresh deals
+    const fetchDeals = async () => {
+      try {
+        const res = await fetch('/api/deals');
+        if (!res.ok) throw new Error('Failed to fetch deals');
+        const data = await res.json();
+        setDeals(data);
+      } catch (error) {
+        console.error('Failed to fetch deals:', error);
+      }
+    };
+    fetchDeals();
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -211,15 +295,25 @@ export function DealsKanbanBoard() {
   }
 
   return (
-    <div className="flex flex-wrap gap-6">
-      {stages.map((stage) => (
+    <>
+      <div className="flex flex-wrap gap-6">
+        {stages.map((stage) => (
         <KanbanColumn
           key={stage}
           stage={stage}
           deals={deals.filter((deal) => deal.stage === stage)}
           onStageChange={handleStageChange}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
         />
-      ))}
-    </div>
+        ))}
+      </div>
+      <AddDealDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onDealAdded={handleDealSaved}
+        dealToEdit={dealToEdit || undefined}
+      />
+    </>
   );
 }

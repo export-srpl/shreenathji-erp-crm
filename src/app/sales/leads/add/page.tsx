@@ -53,6 +53,7 @@ function LeadForm() {
   const [gstNumber, setGstNumber] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserSalesScope, setCurrentUserSalesScope] = useState<string | null>(null);
   const [duplicateWarningOpen, setDuplicateWarningOpen] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<any[]>([]);
   const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
@@ -70,6 +71,15 @@ function LeadForm() {
           const data = await res.json();
           setCurrentUserRole((data.role || '').toLowerCase());
           setCurrentUserId(data.id || null);
+          setCurrentUserSalesScope(data.salesScope || null);
+          
+          // Auto-set country based on salesScope
+          if (data.salesScope === 'domestic_sales' && !leadId) {
+            setSelectedCountry('India');
+            setCustomerType('domestic');
+          } else if (data.salesScope === 'export_sales' && !leadId) {
+            setCustomerType('international');
+          }
         }
       } catch (error) {
         console.error('Failed to fetch auth context:', error);
@@ -348,6 +358,11 @@ function LeadForm() {
           followUpDate: formData.get('followUpDate') as string || null,
           notes: formData.get('notes') as string,
         };
+      }
+
+      // Add allowFullUpdate flag for edit mode
+      if (isEdit) {
+        requestBody.allowFullUpdate = true;
       }
 
       const res = await fetch(url, {

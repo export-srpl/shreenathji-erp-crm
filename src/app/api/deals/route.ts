@@ -6,14 +6,21 @@ import { logActivity } from '@/lib/activity-logger';
 import { runAutomationRules } from '@/lib/automation-engine';
 
 // GET /api/deals - list all deals
-export async function GET() {
+export async function GET(req: Request) {
   // SECURITY: Require authentication
   const authError = await requireAuth();
   if (authError) return authError;
 
   try {
     const prisma = await getPrismaClient();
+    const auth = await getAuthContext(req);
+
+    // Get visibility filter based on user's scope (includes country filtering for salesScope)
+    const { getVisibilityFilter } = await import('@/lib/rbac');
+    const visibilityFilter = await getVisibilityFilter(prisma, auth, 'deal', 'all');
+
     const deals = await prisma.deal.findMany({
+      where: visibilityFilter,
       select: {
         id: true,
         title: true,
@@ -56,7 +63,10 @@ export async function GET() {
 // POST /api/deals - create a new deal
 export async function POST(req: Request) {
   const auth = await getAuthContext(req);
-  if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales'])) {
+  
+  // Check permission - allow admin or users with salesScope
+  const canCreate = auth.role === 'admin' || auth.salesScope === 'export_sales' || auth.salesScope === 'domestic_sales';
+  if (!canCreate || !auth.userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -71,6 +81,30 @@ export async function POST(req: Request) {
 
   if (!title || !customerId || !items || items.length === 0) {
     return NextResponse.json({ error: 'Title, customer, and at least one product are required' }, { status: 400 });
+  }
+
+  // Verify customer country matches user's salesScope
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { country: true },
+  });
+
+  if (!customer) {
+    return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+  }
+
+  // Enforce country restriction based on salesScope
+  if (auth.salesScope === 'domestic_sales' && customer.country !== 'India') {
+    return NextResponse.json(
+      { error: 'Domestic Sales users can only create deals for India companies' },
+      { status: 403 }
+    );
+  }
+  if (auth.salesScope === 'export_sales' && customer.country === 'India') {
+    return NextResponse.json(
+      { error: 'Export Sales users can only create deals for non-India companies' },
+      { status: 403 }
+    );
   }
 
   try {

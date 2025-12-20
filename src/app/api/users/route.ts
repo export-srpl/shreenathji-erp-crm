@@ -25,6 +25,7 @@ export async function GET() {
       status: 'Active' as const, // We don't have a status field in Prisma, defaulting to Active
       avatarUrl: undefined,
       moduleAccess: {}, // Module access not stored in DB yet, can be added later
+      salesScope: (u as any).salesScope || null, // Include salesScope
     }));
 
     return NextResponse.json(mappedUsers);
@@ -43,11 +44,12 @@ export async function POST(req: Request) {
 
   const prisma = await getPrismaClient();
   const body = await req.json();
-  const { name, email, role, password } = body as {
+  const { name, email, role, password, salesScope } = body as {
     name?: string;
     email?: string;
     role?: string;
     password?: string;
+    salesScope?: string | null;
   };
 
   if (!email) {
@@ -85,6 +87,7 @@ export async function POST(req: Request) {
         name: name || null,
         role: dbRole,
         passwordHash,
+        salesScope: salesScope || null,
       },
     });
 
@@ -96,6 +99,7 @@ export async function POST(req: Request) {
       status: 'Active' as const,
       avatarUrl: undefined,
       moduleAccess: {},
+      salesScope: (user as any).salesScope || null,
     });
   } catch (error) {
     console.error('Failed to create user:', error);

@@ -70,6 +70,15 @@ export async function POST(req: Request) {
     performedById: auth.userId || null,
   });
 
+  // Invalidate dispatch register cache
+  try {
+    const { invalidateDispatchCache } = await import('@/app/api/dispatch-register/route');
+    invalidateDispatchCache();
+  } catch (error) {
+    // Best-effort cache invalidation
+    console.warn('Failed to invalidate dispatch cache:', error);
+  }
+
   return NextResponse.json(invoice, { status: 201 });
 }
 

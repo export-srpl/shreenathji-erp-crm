@@ -41,7 +41,7 @@ const sortOptions: SortOption[] = [
 const filterOptions: FilterOption[] = [
   {
     key: 'customerType',
-    label: 'Customer Type',
+    label: 'Company Type',
     type: 'select',
     options: [
       { value: 'domestic', label: 'Domestic' },
@@ -219,14 +219,14 @@ export default function CustomersPage() {
 
       setAllCustomers(prev => prev.filter(c => c.id !== customerId));
       toast({
-        title: 'Customer deleted',
-        description: 'The customer has been removed successfully.',
+        title: 'Company deleted',
+        description: 'The company has been removed successfully.',
       });
     } catch (error) {
       console.error(error);
       toast({
         variant: 'destructive',
-        title: 'Failed to delete customer',
+        title: 'Failed to delete company',
         description: 'Please try again later.',
       });
     }
@@ -265,18 +265,18 @@ export default function CustomersPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Customers</h1>
-          <p className="text-muted-foreground">Manage your customer database.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Companies</h1>
+          <p className="text-muted-foreground">Manage your company database.</p>
         </div>
         <div className="flex gap-2">
             <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
               <Upload className="mr-2" />
-              Import Bulk Customers
+              Import Bulk Companies
             </Button>
             <Link href="/customers/add">
               <Button>
                 <PlusCircle className="mr-2" />
-                Add New Customer
+                Add New Company
               </Button>
             </Link>
         </div>
@@ -285,7 +285,7 @@ export default function CustomersPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>All Customers</CardTitle>
+              <CardTitle>All Companies</CardTitle>
               <CardDescription>Browse, search, and manage your customers.</CardDescription>
             </div>
           </div>

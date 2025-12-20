@@ -32,12 +32,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { useState } from 'react';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/sales/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
     label: 'Sales',
     icon: IndianRupee,
     items: [
       { href: '/sales/leads', label: 'Leads' },
+      { href: '/sales/leads/forms', label: 'Lead Forms' },
       { href: '/deals', label: 'Deals Pipeline' },
       { href: '/sales/quote', label: 'Quote' },
       { href: '/sales/proforma-invoice', label: 'Proforma Invoice' },
@@ -48,11 +49,11 @@ const navItems = [
   },
   // { href: '/qc/coa-generator', label: 'COA Generator', icon: FlaskConical },
     {
-    label: 'Customers',
+    label: 'Company',
     icon: Users,
     items: [
-      { href: '/customers', label: 'All Customers' },
-      { href: '/customers/add', label: 'Add Customer' },
+      { href: '/customers', label: 'All Companies' },
+      { href: '/customers/add', label: 'Add Company' },
       { href: '/contacts', label: 'Contacts' },
     ],
   },
@@ -71,28 +72,13 @@ const navItems = [
     ],
   },
   {
-    label: 'Finance',
-    icon: FileText,
-    items: [
-      { href: '/finance/payments-received', label: 'Payments Received' },
-    ],
-  },
-  {
-    label: 'Mobile',
-    icon: Smartphone,
-    items: [
-      { href: '/mobile/notifications', label: 'Push Notifications' },
-      { href: '/mobile/geo-logs', label: 'Geo-location Logs' },
-    ],
-  },
-  {
     label: 'Reports',
     icon: BarChart3,
     items: [
       { href: '/reports/leads', label: 'Leads Reports' },
       { href: '/reports/deals-pipeline', label: 'Deals Pipeline Reports' },
       { href: '/reports/contacts', label: 'Contact Reports' },
-      { href: '/reports/customers', label: 'Customer Reports' },
+      { href: '/reports/customers', label: 'Company Reports' },
       { href: '/analytics/global-presence', label: 'Global Presence' },
     ],
   },
@@ -125,13 +111,10 @@ export function SidebarNav() {
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton
                   isActive={item.items.some(sub => pathname.startsWith(sub.href))}
-                  className="w-full font-semibold"
                 >
-                  <div className="flex items-center gap-2 flex-1">
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </div>
-                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" data-state={openItems.includes(item.label) ? 'open' : 'closed'}/>
+                  <item.icon />
+                  <span>{item.label}</span>
+                  <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200" data-state={openItems.includes(item.label) ? 'open' : 'closed'}/>
                 </SidebarMenuButton>
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -143,7 +126,6 @@ export function SidebarNav() {
                         isActive={pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)}
                         disabled={(subItem as any).disabled}
                         tooltip={subItem.label}
-                        className="font-normal"
                       >
                         <Link href={subItem.href || '#'}>
                           <span>{subItem.label}</span>
