@@ -1,0 +1,179 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "Next.js 15.5.9",
+    "React 18.3.1",
+    "PostgreSQL",
+    "Prisma ORM",
+    "Tailwind CSS",
+    "ShadCN UI",
+    "Firebase",
+    "Vercel Blob",
+    "Redis"
+  ],
+  "features": [
+    {
+      "name": "User Authentication",
+      "description": "Login, logout, 2FA, session management, account lockout, rate limiting",
+      "files": [
+        "src/app/api/auth/login/route.ts",
+        "src/app/api/auth/logout/route.ts",
+        "src/app/api/auth/me/route.ts",
+        "src/app/api/auth/2fa/verify/route.ts",
+        "src/app/login/page.tsx",
+        "src/app/login/verify-2fa/page.tsx",
+        "src/lib/auth.ts",
+        "src/lib/account-lockout.ts",
+        "src/lib/rate-limit.ts"
+      ]
+    },
+    {
+      "name": "Lead Management",
+      "description": "Create, read, update, delete leads, lead stages, lead sources, lead health scoring",
+      "files": [
+        "src/app/api/leads/route.ts",
+        "src/app/api/leads/[id]/route.ts",
+        "src/app/sales/leads/page.tsx",
+        "src/app/sales/leads/add/page.tsx",
+        "src/lib/data-hygiene.ts"
+      ]
+    },
+    {
+      "name": "Deal Pipeline",
+      "description": "Kanban board for deals, deal stages, deal creation and editing",
+      "files": [
+        "src/app/api/deals/route.ts",
+        "src/app/api/deals/[id]/route.ts",
+        "src/app/deals/page.tsx",
+        "src/components/deals/kanban-board.tsx",
+        "src/components/deals/add-deal-dialog.tsx"
+      ]
+    },
+    {
+      "name": "Customer/Company Management",
+      "description": "Customer CRUD operations, currency selection, document linking, contacts",
+      "files": [
+        "src/app/api/customers/route.ts",
+        "src/app/api/customers/[id]/route.ts",
+        "src/app/customers/page.tsx",
+        "src/app/customers/add/page.tsx",
+        "src/app/customers/[id]/page.tsx",
+        "src/app/api/contacts/route.ts"
+      ]
+    },
+    {
+      "name": "Product Management",
+      "description": "Product CRUD, document status tracking (TDS, MSDS, COA), inventory",
+      "files": [
+        "src/app/api/products/route.ts",
+        "src/app/api/products/[id]/route.ts",
+        "src/app/api/products/document-status/route.ts",
+        "src/app/inventory/products/page.tsx",
+        "src/app/inventory/products/[id]/page.tsx"
+      ]
+    },
+    {
+      "name": "Document Management",
+      "description": "Document upload, versioning, virus scanning, Vercel Blob storage, linking to products/customers",
+      "files": [
+        "src/app/api/documents/route.ts",
+        "src/app/api/documents/[id]/route.ts",
+        "src/app/documents/page.tsx",
+        "src/components/documents/document-manager.tsx",
+        "src/lib/document-storage.ts",
+        "src/lib/virus-scanner.ts"
+      ]
+    },
+    {
+      "name": "Lead Capture Forms",
+      "description": "Public lead capture forms, form builder, automatic lead assignment",
+      "files": [
+        "src/app/api/lead-capture-forms/route.ts",
+        "src/app/api/lead-capture-forms/[slug]/submit/route.ts",
+        "src/app/lead-form/[slug]/page.tsx",
+        "src/app/sales/leads/forms/page.tsx"
+      ]
+    },
+    {
+      "name": "Dispatch Register",
+      "description": "Line-item dispatch tracking, PO visibility, dispatch status, as-of-date filtering",
+      "files": [
+        "src/app/api/dispatch-register/route.ts",
+        "src/app/api/dispatch-register/export/route.ts",
+        "src/app/logistics/dispatch-register/page.tsx",
+        "src/components/dispatch/dispatch-register-table.tsx"
+      ]
+    },
+    {
+      "name": "Sales Documents",
+      "description": "Quotes, Proforma Invoices, Sales Orders, Invoices with PDF generation",
+      "files": [
+        "src/app/api/quotes/route.ts",
+        "src/app/api/proforma-invoices/route.ts",
+        "src/app/api/sales-orders/route.ts",
+        "src/app/api/invoices/route.ts",
+        "src/app/sales/quote/page.tsx",
+        "src/app/sales/proforma-invoice/page.tsx",
+        "src/app/sales/sales-order/page.tsx",
+        "src/app/sales/create-invoice/page.tsx"
+      ]
+    },
+    {
+      "name": "Reports & Analytics",
+      "description": "Product analytics, sales reports, pipeline reports, revenue projections, win-loss analysis",
+      "files": [
+        "src/app/api/reports/pipeline/weighted/route.ts",
+        "src/app/api/reports/revenue/projection/route.ts",
+        "src/app/api/reports/win-loss/route.ts",
+        "src/app/api/analytics/products/demand/route.ts",
+        "src/app/api/analytics/products/conversion/route.ts",
+        "src/app/reports/advanced/page.tsx",
+        "src/app/analytics/products/page.tsx"
+      ]
+    },
+    {
+      "name": "RBAC & Permissions",
+      "description": "Role-based access control, field-level permissions, sales scope (export/domestic)",
+      "files": [
+        "src/app/api/permissions/route.ts",
+        "src/app/api/users/route.ts",
+        "src/app/users-roles/page.tsx",
+        "src/lib/rbac.ts",
+        "src/components/rbac/protected-field.tsx"
+      ]
+    },
+    {
+      "name": "Workflow Automation",
+      "description": "Rule-based automation engine for leads, deals, notifications",
+      "files": [
+        "src/app/api/automation/rules/route.ts",
+        "src/lib/automation-engine.ts"
+      ]
+    },
+    {
+      "name": "Global Search",
+      "description": "Universal search across entities with quick actions",
+      "files": [
+        "src/app/api/search/global/route.ts",
+        "src/lib/global-search.ts"
+      ]
+    },
+    {
+      "name": "Activity Timeline",
+      "description": "Unified activity timeline for all entities",
+      "files": [
+        "src/app/api/activity/route.ts",
+        "src/components/activity/activity-timeline.tsx",
+        "src/lib/activity-logger.ts"
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "Sales dashboard with key metrics and overview",
+      "files": [
+        "src/app/sales/dashboard/page.tsx",
+        "src/app/page.tsx"
+      ]
+    }
+  ]
+}

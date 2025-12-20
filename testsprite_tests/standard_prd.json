@@ -1,0 +1,62 @@
+{
+  "project_name": "Shreenathji ERP+CRM System",
+  "version": "1.0.0",
+  "description": "A comprehensive ERP and CRM application for managing sales, customers, inventory, and business operations",
+  "objectives": [
+    "Provide a unified platform for sales management",
+    "Enable efficient customer and product management",
+    "Support document management and compliance",
+    "Provide analytics and reporting capabilities",
+    "Ensure secure user authentication and authorization"
+  ],
+  "features": [
+    {
+      "id": "F001",
+      "name": "User Authentication",
+      "description": "Secure login, logout, 2FA, session management",
+      "priority": "high"
+    },
+    {
+      "id": "F002",
+      "name": "Lead Management",
+      "description": "Create, view, update, and manage sales leads",
+      "priority": "high"
+    },
+    {
+      "id": "F003",
+      "name": "Deal Pipeline",
+      "description": "Kanban board for managing deals through sales stages",
+      "priority": "high"
+    },
+    {
+      "id": "F004",
+      "name": "Customer/Company Management",
+      "description": "Manage customer information, contacts, and relationships",
+      "priority": "high"
+    },
+    {
+      "id": "F005",
+      "name": "Product Management",
+      "description": "Manage product catalog and inventory",
+      "priority": "medium"
+    },
+    {
+      "id": "F006",
+      "name": "Document Management",
+      "description": "Upload, store, and manage documents with versioning",
+      "priority": "medium"
+    },
+    {
+      "id": "F007",
+      "name": "Reports & Analytics",
+      "description": "Generate reports and analytics for business insights",
+      "priority": "medium"
+    }
+  ],
+  "technical_requirements": {
+    "frontend": "Next.js 15, React 18, TypeScript",
+    "backend": "Next.js API Routes, Prisma ORM",
+    "database": "PostgreSQL",
+    "authentication": "Cookie-based sessions"
+  }
+}

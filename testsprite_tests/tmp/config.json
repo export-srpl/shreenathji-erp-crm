@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "sales.ex@shreenathjirasayan.com",
+  "loginPassword": "Cre8ive#2025",
+  "executionArgs": {
+    "projectName": "shreenathji-erp-crm",
+    "projectPath": "C:\\Users\\sales\\OneDrive\\Desktop\\shreenathji-erp-crm",
+    "testIds": [],
+    "additionalInstruction": "Test the login functionality, lead management, document upload, and deal pipeline features. Ensure all authentication flows work correctly.",
+    "envs": {
+      "API_KEY": "sk-user-EepJyEFjxescYnV2QlQvBHYFCrkNTHaigCZdbkou7A_7XUsCVJbhEqaSyyNK2e5Hdw1IFPV8Atg0DwRv512YkVEdPzr7ZQT7Ej-WxmXBvHIggaVTgrQ5CefZKoGcK08O4gE"
+    }
+  },
+  "proxy": "http://31a777f4-f240-4b91-b26c-c928156fe440:DkPIM62D5036OCowAoxO8OS0QkeECUoX@tun.testsprite.com:8080"
+}

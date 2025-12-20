@@ -1,0 +1,154 @@
+{
+  "id": "shreenathji-erp-crm-frontend-tests",
+  "title": "Shreenathji ERP+CRM Frontend Test Plan",
+  "description": "Comprehensive frontend testing for Shreenathji ERP+CRM System including authentication, lead management, document management, and deal pipeline",
+  "steps": [
+    {
+      "id": "TC-001",
+      "name": "Login with valid credentials",
+      "description": "User should be able to log in with valid email and password",
+      "steps": [
+        "Navigate to http://localhost:3000/login",
+        "Enter valid email in email field",
+        "Enter valid password in password field",
+        "Click Sign In button",
+        "Verify redirect to /sales/dashboard",
+        "Verify user is authenticated"
+      ],
+      "expected_result": "User is successfully logged in and redirected to dashboard"
+    },
+    {
+      "id": "TC-002",
+      "name": "Login with invalid credentials",
+      "description": "User should see error message for invalid credentials",
+      "steps": [
+        "Navigate to http://localhost:3000/login",
+        "Enter invalid email or password",
+        "Click Sign In button",
+        "Verify error message is displayed",
+        "Verify user is not redirected"
+      ],
+      "expected_result": "Error message 'Invalid credentials' is shown and user remains on login page"
+    },
+    {
+      "id": "TC-003",
+      "name": "Password visibility toggle",
+      "description": "User should be able to toggle password visibility",
+      "steps": [
+        "Navigate to http://localhost:3000/login",
+        "Enter password in password field",
+        "Verify password is hidden by default",
+        "Click eye icon",
+        "Verify password text is visible",
+        "Click eye icon again",
+        "Verify password is hidden again"
+      ],
+      "expected_result": "Password visibility toggles correctly between visible and hidden"
+    },
+    {
+      "id": "TC-004",
+      "name": "Create new lead",
+      "description": "User should be able to create a new lead",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/sales/leads",
+        "Click 'Add New Lead' button",
+        "Fill in lead form with required fields (name, email, etc.)",
+        "Select product from searchable combobox",
+        "Click Save button",
+        "Verify success message",
+        "Verify lead appears in leads list"
+      ],
+      "expected_result": "New lead is created successfully and visible in leads list"
+    },
+    {
+      "id": "TC-005",
+      "name": "View leads list",
+      "description": "User should be able to view all leads with product names",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/sales/leads",
+        "Verify leads table is displayed",
+        "Verify product names are shown (not IDs or raw data)",
+        "Verify table columns are visible",
+        "Verify pagination works if many leads exist"
+      ],
+      "expected_result": "Leads list displays correctly with product names visible"
+    },
+    {
+      "id": "TC-006",
+      "name": "Upload document",
+      "description": "User should be able to upload a document with proper validation",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/documents",
+        "Click 'Upload New Document' button",
+        "Select document type (COA, TDS, MSDS, or Contract)",
+        "Select product or customer based on document type",
+        "Choose file (PDF, JPG, JPEG, or PNG)",
+        "Verify upload progress bar appears",
+        "Click Upload button",
+        "Verify document appears in documents list",
+        "Verify document type and linked entity are correct"
+      ],
+      "expected_result": "Document is uploaded successfully with progress indication and appears in documents list"
+    },
+    {
+      "id": "TC-007",
+      "name": "View document preview",
+      "description": "User should be able to preview documents without downloading",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/documents",
+        "Verify documents list is displayed",
+        "Click eye icon on a document",
+        "Verify document opens in preview modal or new tab",
+        "Verify document content is visible"
+      ],
+      "expected_result": "Document preview opens correctly showing document content"
+    },
+    {
+      "id": "TC-008",
+      "name": "View deals pipeline",
+      "description": "User should see deals organized in Kanban board",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/deals",
+        "Verify Kanban board is displayed",
+        "Verify deals are organized by stage (columns)",
+        "Verify deal cards are visible",
+        "Verify drag and drop functionality if available"
+      ],
+      "expected_result": "Deals pipeline displays correctly in Kanban format"
+    },
+    {
+      "id": "TC-009",
+      "name": "Edit deal",
+      "description": "User should be able to edit a deal",
+      "steps": [
+        "Login to the application",
+        "Navigate to http://localhost:3000/deals",
+        "Click on a deal card",
+        "Click Edit option from dropdown menu",
+        "Modify deal details in the form",
+        "Click Save button",
+        "Verify success message",
+        "Verify changes are reflected in the deal card"
+      ],
+      "expected_result": "Deal is updated successfully and changes are visible"
+    },
+    {
+      "id": "TC-010",
+      "name": "Navigate to dashboard",
+      "description": "First navigation link should route to dashboard for authenticated users",
+      "steps": [
+        "Login to the application",
+        "Click first navigation link in sidebar",
+        "Verify redirect to /sales/dashboard",
+        "Verify user is not logged out",
+        "Verify dashboard content is displayed"
+      ],
+      "expected_result": "User is redirected to dashboard, not logged out, and dashboard loads correctly"
+    }
+  ]
+}
