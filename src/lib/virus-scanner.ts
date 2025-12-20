@@ -84,19 +84,15 @@ export function validateFileType(mimeType: string, filename: string): { valid: b
     'image/jpeg',
     'image/jpg',
     'image/png',
-    'image/gif',
-    'image/webp',
-    'image/bmp',
-    'image/tiff',
   ];
 
-  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'];
+  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
 
   // Check MIME type
   if (!allowedMimeTypes.includes(mimeType.toLowerCase())) {
     return {
       valid: false,
-      message: `File type ${mimeType} is not allowed. Only PDF and image files are accepted.`,
+      message: `File type ${mimeType} is not allowed. Only PDF, JPG, JPEG, and PNG files are accepted.`,
     };
   }
 
@@ -105,7 +101,7 @@ export function validateFileType(mimeType: string, filename: string): { valid: b
   if (!allowedExtensions.includes(extension)) {
     return {
       valid: false,
-      message: `File extension ${extension} is not allowed. Only PDF and image files are accepted.`,
+      message: `File extension ${extension} is not allowed. Only PDF, JPG, JPEG, and PNG files are accepted.`,
     };
   }
 

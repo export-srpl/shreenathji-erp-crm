@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, File, Download, Trash2, History, Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Loader2, Upload, File, Download, Trash2, History, Plus, CheckCircle2, AlertTriangle, Check, ChevronsUpDown, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface DocumentManagerProps {
   entityType: string;
   entityId: string;
+  productId?: string;
+  customerId?: string;
 }
 
 const DOCUMENT_TYPES = [
@@ -34,11 +40,12 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
   const [isLoading, setIsLoading] = useState(true);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDocumentType, setSelectedDocumentType] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>(initialProductId || '');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(initialCustomerId || '');
-  const [products, setProducts] = useState<Array<{ id: string; name: string; srplId?: string | null }>>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [customers, setCustomers] = useState<Array<{ id: string; companyName: string; srplId?: string | null }>>([]);
 
   useEffect(() => {
@@ -53,24 +60,50 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
         const productsRes = await fetch('/api/products');
         if (productsRes.ok) {
           const productsData = await productsRes.json();
-          setProducts(productsData.slice(0, 100)); // Limit to first 100 for performance
+          // Map to ensure correct structure: { id, name }
+          const mappedProducts = productsData.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.productName || '',
+          })).filter((p: any) => p.name && p.id); // Filter out invalid products
+          console.log('Loaded products for document manager:', mappedProducts.length, mappedProducts);
+          setProducts(mappedProducts);
+        } else {
+          console.error('Failed to fetch products:', productsRes.statusText);
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load products',
+            description: 'Could not load products. Please try again.',
+          });
         }
 
         // Fetch customers
         const customersRes = await fetch('/api/customers');
         if (customersRes.ok) {
           const customersData = await customersRes.json();
-          setCustomers(customersData.slice(0, 100)); // Limit to first 100 for performance
+          // Map to ensure correct structure
+          const mappedCustomers = customersData.map((c: any) => ({
+            id: c.id,
+            companyName: c.companyName || '',
+            srplId: c.srplId || null,
+          }));
+          setCustomers(mappedCustomers);
+        } else {
+          console.error('Failed to fetch customers:', customersRes.statusText);
         }
       } catch (error) {
         console.error('Failed to fetch products/customers:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load data',
+          description: 'Could not load products or customers. Please refresh the page.',
+        });
       }
     };
 
     if (uploadDialogOpen) {
       fetchData();
     }
-  }, [uploadDialogOpen]);
+  }, [uploadDialogOpen, toast]);
 
   const fetchDocuments = async () => {
     setIsLoading(true);
@@ -107,12 +140,12 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
     if (!selectedFile) return;
 
     // Validate file type
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff'];
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(selectedFile.type)) {
       toast({
         variant: 'destructive',
         title: 'Invalid file type',
-        description: 'Only PDF and image files (JPG, PNG, GIF, WEBP, BMP, TIFF) are allowed.',
+        description: 'Only PDF, JPG, JPEG, and PNG files are allowed.',
       });
       return;
     }
@@ -149,20 +182,52 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
     }
 
     setUploading(true);
+    setUploadProgress(0);
     try {
       const formData = new FormData(e.currentTarget);
       formData.append('file', selectedFile);
+      formData.append('name', selectedFile.name); // Use filename as document name
       formData.append('entityType', entityType);
       formData.append('entityId', entityId);
       if (selectedProductId) formData.append('productId', selectedProductId);
       if (selectedCustomerId) formData.append('customerId', selectedCustomerId);
 
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        body: formData,
+      // Create XMLHttpRequest for progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      const uploadPromise = new Promise<{ ok: boolean; data: any }>((resolve, reject) => {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = (e.loaded / e.total) * 100;
+            setUploadProgress(percentComplete);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          try {
+            const data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({ ok: true, data });
+            } else {
+              resolve({ ok: false, data });
+            }
+          } catch (error) {
+            reject(new Error('Failed to parse response'));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Upload failed'));
+        });
+
+        xhr.open('POST', '/api/documents');
+        xhr.send(formData);
       });
 
-      if (res.ok) {
+      const result = await uploadPromise;
+
+      if (result.ok) {
+        setUploadProgress(100);
         toast({
           title: 'Document uploaded',
           description: 'The document has been uploaded successfully.',
@@ -172,12 +237,13 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
         setSelectedDocumentType('');
         setSelectedProductId(initialProductId || '');
         setSelectedCustomerId(initialCustomerId || '');
+        setUploadProgress(0);
         fetchDocuments();
       } else {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to upload document');
+        throw new Error(result.data.error || 'Failed to upload document');
       }
     } catch (error) {
+      setUploadProgress(0);
       toast({
         variant: 'destructive',
         title: 'Upload failed',
@@ -250,11 +316,11 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
-                    <Label htmlFor="file">File * (PDF, JPG, PNG, GIF, WEBP, BMP, TIFF - Max 10 MB)</Label>
+                    <Label htmlFor="file">File * (PDF, JPG, JPEG, PNG - Max 10 MB)</Label>
                     <Input
                       id="file"
                       type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff"
+                      accept=".pdf,.jpg,.jpeg,.png"
                       onChange={handleFileSelect}
                       required
                       className="mt-1"
@@ -267,10 +333,6 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                         )}
                       </p>
                     )}
-                  </div>
-                  <div>
-                    <Label htmlFor="name">Document Name</Label>
-                    <Input id="name" name="name" required placeholder="e.g. Product COA 2024" />
                   </div>
                   <div>
                     <Label htmlFor="type">Document Type *</Label>
@@ -306,23 +368,12 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                   {DOCUMENT_TYPES.find((t) => t.value === selectedDocumentType)?.requiresProduct && (
                     <div>
                       <Label htmlFor="productId">Product *</Label>
-                      <Select
-                        name="productId"
-                        required
+                      <ProductCombobox
+                        products={products}
+                        onSelectProduct={(productId) => setSelectedProductId(productId)}
                         value={selectedProductId}
-                        onValueChange={setSelectedProductId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((product) => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.name} {product.srplId && `(${product.srplId})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
+                      <input type="hidden" name="productId" value={selectedProductId} required={!!selectedProductId} />
                       <p className="text-xs text-muted-foreground mt-1">
                         This document will be linked to the selected product and visible in the product record
                       </p>
@@ -333,23 +384,12 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                   {DOCUMENT_TYPES.find((t) => t.value === selectedDocumentType)?.requiresCustomer && (
                     <div>
                       <Label htmlFor="customerId">Customer *</Label>
-                      <Select
-                        name="customerId"
-                        required
-                        value={selectedCustomerId}
-                        onValueChange={setSelectedCustomerId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.companyName} {customer.srplId && `(${customer.srplId})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <CustomerCombobox
+                        customers={customers}
+                        onSelectCustomer={(customerId) => setSelectedCustomerId(customerId)}
+                        defaultValue={selectedCustomerId}
+                      />
+                      <input type="hidden" name="customerId" value={selectedCustomerId} required={!!selectedCustomerId} />
                       <p className="text-xs text-muted-foreground mt-1">
                         This contract will be linked to the selected customer and visible in the customer profile
                       </p>
@@ -360,6 +400,15 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                     <Label htmlFor="description">Description (Optional)</Label>
                     <Textarea id="description" name="description" placeholder="Add a description..." />
                   </div>
+                  {uploading && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Uploading...</span>
+                        <span className="text-muted-foreground">{Math.round(uploadProgress)}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-2" />
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setUploadDialogOpen(false)}>
@@ -410,11 +459,11 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{doc.name}</span>
                       {doc.isScanned && (
-                        <span className="flex items-center gap-1 text-xs">
+                        <span className="flex items-center gap-1 text-xs" title={doc.scanResult === 'clean' ? 'Virus scan: Clean' : doc.scanResult === 'infected' ? 'Virus scan: Infected' : ''}>
                           {doc.scanResult === 'clean' ? (
-                            <CheckCircle2 className="h-3 w-3 text-green-600" title="Virus scan: Clean" />
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
                           ) : doc.scanResult === 'infected' ? (
-                            <AlertTriangle className="h-3 w-3 text-red-600" title="Virus scan: Infected" />
+                            <AlertTriangle className="h-3 w-3 text-red-600" />
                           ) : null}
                         </span>
                       )}
@@ -437,13 +486,23 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       {doc.fileUrl && (
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
+                        <>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => window.open(doc.fileUrl || '', '_blank')}
+                            title="Preview document"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Download document">
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} title="Delete document">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -455,6 +514,147 @@ export function DocumentManager({ entityType, entityId, productId: initialProduc
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Product Combobox Component - matches Add Deal Dialog pattern
+function ProductCombobox({ 
+  products, 
+  onSelectProduct, 
+  value,
+  disabled
+}: { 
+  products: Array<{ id: string; name: string }>; 
+  onSelectProduct: (productId: string) => void; 
+  value: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const selectedProductName = useMemo(() => {
+    return products.find((product) => product.id === value)?.name;
+  }, [products, value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+          disabled={disabled}
+        >
+          {value ? selectedProductName : 'Select product...'}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+        <Command>
+          <CommandInput placeholder="Search product..." />
+          <CommandEmpty>No product found.</CommandEmpty>
+          <CommandList className="max-h-[300px]">
+            <CommandGroup>
+              {products.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  No products available. Please add products first.
+                </div>
+              ) : (
+                products.map((product) => (
+                  <CommandItem
+                    key={product.id}
+                    value={product.name}
+                    onSelect={() => {
+                      onSelectProduct(product.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn('mr-2 h-4 w-4', value === product.id ? 'opacity-100' : 'opacity-0')}
+                    />
+                    {product.name}
+                  </CommandItem>
+                ))
+              )}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Customer Combobox Component
+function CustomerCombobox({ 
+  customers, 
+  onSelectCustomer, 
+  defaultValue 
+}: { 
+  customers: Array<{ id: string; companyName: string; srplId?: string | null }>; 
+  onSelectCustomer: (customerId: string) => void; 
+  defaultValue?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(defaultValue || '');
+
+  useEffect(() => {
+    if (defaultValue) setValue(defaultValue);
+  }, [defaultValue]);
+
+  const selectedCustomer = useMemo(() => {
+    return customers.find((customer) => customer.id === value);
+  }, [customers, value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+        >
+          {value && selectedCustomer
+            ? `${selectedCustomer.companyName}${selectedCustomer.srplId ? ` (${selectedCustomer.srplId})` : ''}`
+            : 'Select customer...'}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[400px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search customer by company name or SRPL ID..." />
+          <CommandEmpty>No customer found.</CommandEmpty>
+          <CommandList>
+            <CommandGroup>
+              {customers.map((customer) => (
+                <CommandItem
+                  key={customer.id}
+                  value={`${customer.companyName} ${customer.srplId || ''}`}
+                  onSelect={() => {
+                    setValue(customer.id);
+                    onSelectCustomer(customer.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      'mr-2 h-4 w-4',
+                      value === customer.id ? 'opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  <div className="flex flex-col">
+                    <span>{customer.companyName}</span>
+                    {customer.srplId && (
+                      <span className="text-xs text-muted-foreground">SRPL ID: {customer.srplId}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

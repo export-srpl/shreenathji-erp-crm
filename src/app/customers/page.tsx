@@ -344,7 +344,14 @@ export default function CustomersPage() {
                 <TableBody>
                   {pagedCustomers.map((customer) => (
                   <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.companyName}</TableCell>
+                    <TableCell className="font-medium">
+                      <a 
+                        href={`/customers/${customer.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {customer.companyName}
+                      </a>
+                    </TableCell>
                   <TableCell>
                     {customer.customerType === 'domestic'
                       ? customer.state || customer.country

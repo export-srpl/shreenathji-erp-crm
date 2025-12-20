@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,20 +16,23 @@ function Verify2FAForm() {
 
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAutoVerified, setHasAutoVerified] = useState(false);
 
   const email = searchParams.get('email') || '';
   const redirectTo = searchParams.get('redirectTo') || '/sales/dashboard';
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const verifyCode = async (verificationCode: string) => {
+    if (verificationCode.length !== 6 || isSubmitting || hasAutoVerified) return;
+
     setIsSubmitting(true);
+    setHasAutoVerified(true);
 
     try {
       // Verify 2FA code
       const res = await fetch('/api/auth/2fa/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code: verificationCode }),
       });
 
       if (!res.ok) {
@@ -39,6 +42,7 @@ function Verify2FAForm() {
           title: 'Verification failed',
           description: error.error || 'Invalid verification code.',
         });
+        setHasAutoVerified(false);
         return;
       }
 
@@ -67,10 +71,24 @@ function Verify2FAForm() {
         title: 'Verification failed',
         description: 'Unexpected error. Please try again.',
       });
+      setHasAutoVerified(false);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await verifyCode(code);
   }
+
+  // Auto-verify when 6 digits are entered
+  useEffect(() => {
+    if (code.length === 6 && !isSubmitting && !hasAutoVerified) {
+      verifyCode(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, isSubmitting, hasAutoVerified]);
 
   return (
     <Card className="w-full max-w-md">

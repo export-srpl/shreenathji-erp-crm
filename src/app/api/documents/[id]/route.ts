@@ -92,8 +92,11 @@ export async function DELETE(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Delete file
-    if (document.filePath) {
+    // Delete file from blob storage (use fileUrl if available, otherwise filePath)
+    if (document.fileUrl) {
+      await deleteDocument(document.fileUrl);
+    } else if (document.filePath) {
+      // Fallback for old filePath-based storage
       await deleteDocument(document.filePath);
     }
 
@@ -101,7 +104,10 @@ export async function DELETE(_req: Request, { params }: Params) {
     for (const version of await p.documentVersion.findMany({
       where: { documentId: document.id },
     })) {
-      if (version.filePath) {
+      if (version.fileUrl) {
+        await deleteDocument(version.fileUrl);
+      } else if (version.filePath) {
+        // Fallback for old filePath-based storage
         await deleteDocument(version.filePath);
       }
     }

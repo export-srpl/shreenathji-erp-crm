@@ -762,7 +762,7 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
                                     <ProductCombobox 
                                         products={products || []}
                                         onSelectProduct={(productId) => handleLineItemChange(index, 'productId', productId)}
-                                        defaultValue={item.productId}
+                                        value={item.productId}
                                         disabled={isReadOnly}
                                     />
                                 </TableCell>
@@ -933,14 +933,13 @@ function CustomerCombobox({ customers, onSelectCustomer, defaultValue, disabled 
   )
 }
 
-// Combobox for selecting a product in a line item
-function ProductCombobox({ products, onSelectProduct, defaultValue, disabled }: { products: Product[], onSelectProduct: (productId: string) => void, defaultValue?: string, disabled?: boolean }) {
+// Combobox for selecting a product in a line item - matches Add Deal Dialog pattern
+function ProductCombobox({ products, onSelectProduct, value, disabled }: { products: Product[], onSelectProduct: (productId: string) => void, value: string, disabled?: boolean }) {
   const [open, setOpen] = useState(false)
-  const [value, setValue] = useState(defaultValue || "")
 
-   useEffect(() => {
-    if(defaultValue) setValue(defaultValue)
-  }, [defaultValue])
+  const selectedProductName = useMemo(() => {
+    return products.find((product) => product.id === value)?.productName;
+  }, [products, value]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -952,39 +951,33 @@ function ProductCombobox({ products, onSelectProduct, defaultValue, disabled }: 
           className="w-full justify-between"
           disabled={disabled}
         >
-          {value
-            ? products.find((product) => product.id === value)?.productName
-            : "Select product..."}
+          {value ? selectedProductName : "Select product..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
           <CommandInput placeholder="Search product..." />
           <CommandEmpty>No product found.</CommandEmpty>
-           <CommandList>
-                <CommandGroup>
-                    {products.map((product) => (
-                    <CommandItem
-                        key={product.id}
-                        value={product.id}
-                        onSelect={(currentValue) => {
-                            setValue(currentValue)
-                            onSelectProduct(currentValue)
-                            setOpen(false)
-                        }}
-                    >
-                        <Check
-                        className={cn(
-                            "mr-2 h-4 w-4",
-                            value === product.id ? "opacity-100" : "opacity-0"
-                        )}
-                        />
-                        {product.productName}
-                    </CommandItem>
-                    ))}
-                </CommandGroup>
-            </CommandList>
+          <CommandList className="max-h-[300px]">
+            <CommandGroup>
+              {products.map((product) => (
+                <CommandItem
+                  key={product.id}
+                  value={product.productName}
+                  onSelect={() => {
+                    onSelectProduct(product.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn("mr-2 h-4 w-4", value === product.id ? "opacity-100" : "opacity-0")}
+                  />
+                  {product.productName}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>

@@ -98,8 +98,9 @@ function LeadForm() {
           const productsData = await productsRes.json();
           const mappedProducts = productsData.map((p: any) => ({
             id: p.id,
-            name: p.name,
-          }));
+            name: p.name || p.productName || '',
+          })).filter((p: any) => p.name && p.id); // Filter out invalid products
+          console.log('Loaded products for lead form:', mappedProducts.length);
           setProducts(mappedProducts);
         }
       } catch (error) {
@@ -873,21 +874,27 @@ function ProductCombobox({
           <CommandEmpty>No product found.</CommandEmpty>
           <CommandList className="max-h-[300px]">
             <CommandGroup>
-              {products.map((product) => (
-                <CommandItem
-                  key={product.id}
-                  value={product.name}
-                  onSelect={() => {
-                    onSelectProduct(product.id);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn('mr-2 h-4 w-4', value === product.id ? 'opacity-100' : 'opacity-0')}
-                  />
-                  {product.name}
-                </CommandItem>
-              ))}
+              {products.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  No products available. Please add products first.
+                </div>
+              ) : (
+                products.map((product) => (
+                  <CommandItem
+                    key={product.id}
+                    value={product.name}
+                    onSelect={() => {
+                      onSelectProduct(product.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn('mr-2 h-4 w-4', value === product.id ? 'opacity-100' : 'opacity-0')}
+                    />
+                    {product.name}
+                  </CommandItem>
+                ))
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

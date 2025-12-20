@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Upload, MoreHorizontal, Trash2, Pencil, Loader2 } from "lucide-react";
+import { PlusCircle, Upload, MoreHorizontal, Trash2, Pencil, Loader2, Check, X } from "lucide-react";
 import { AddProductDialog } from '@/components/inventory/add-product-dialog';
 import { ImportProductsDialog } from '@/components/inventory/import-products-dialog';
 import type { Product } from '@/types';
@@ -67,6 +67,7 @@ export default function ProductsPage() {
   const [importStartedAt, setImportStartedAt] = useState<number | null>(null);
   const [importErrors, setImportErrors] = useState<{ name: string; sku?: string; row?: number; error: string }[]>([]);
   const importCancelledRef = useRef(false);
+  const [documentStatus, setDocumentStatus] = useState<Record<string, { TDS: boolean; MSDS: boolean; COA: boolean }>>({});
 
   // Fetch products from API
   useEffect(() => {
@@ -103,6 +104,26 @@ export default function ProductsPage() {
 
     fetchProducts();
   }, [toast]);
+
+  // Fetch document status for products
+  useEffect(() => {
+    const fetchDocumentStatus = async () => {
+      if (allProducts.length === 0) return;
+      
+      try {
+        const productIds = allProducts.map(p => p.id).join(',');
+        const res = await fetch(`/api/products/document-status?productIds=${productIds}`);
+        if (res.ok) {
+          const status = await res.json();
+          setDocumentStatus(status);
+        }
+      } catch (error) {
+        console.error('Failed to fetch document status:', error);
+      }
+    };
+
+    fetchDocumentStatus();
+  }, [allProducts]);
 
   // Filter, search, and sort products
   const filteredAndSortedProducts = useMemo(() => {
@@ -730,6 +751,9 @@ export default function ProductsPage() {
                   <TableHead>Category</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>HSN Code</TableHead>
+                  <TableHead className="text-center">TDS</TableHead>
+                  <TableHead className="text-center">MSDS</TableHead>
+                  <TableHead className="text-center">COA</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -746,10 +770,38 @@ export default function ProductsPage() {
                         aria-label={`Select product ${product.productName}`}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{product.productName}</TableCell>
+                    <TableCell className="font-medium">
+                      <a 
+                        href={`/inventory/products/${product.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {product.productName}
+                      </a>
+                    </TableCell>
                     <TableCell>{product.category}</TableCell>
                     <TableCell>{product.sku || ''}</TableCell>
                     <TableCell>{product.hsnCode || ''}</TableCell>
+                    <TableCell className="text-center">
+                      {documentStatus[product.id]?.TDS ? (
+                        <Check className="h-4 w-4 text-green-600 mx-auto" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-500 mx-auto" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {documentStatus[product.id]?.MSDS ? (
+                        <Check className="h-4 w-4 text-green-600 mx-auto" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-500 mx-auto" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {documentStatus[product.id]?.COA ? (
+                        <Check className="h-4 w-4 text-green-600 mx-auto" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-500 mx-auto" />
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>

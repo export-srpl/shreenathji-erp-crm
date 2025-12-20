@@ -19,32 +19,58 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const entityType = searchParams.get('entityType');
     const entityId = searchParams.get('entityId');
-
-    if (!entityType || !entityId) {
-      return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
-    }
+    const page = parseInt(searchParams.get('page') || '0');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
     const prisma = await getPrismaClient();
     const p: any = prisma;
 
-    const documents = await p.document.findMany({
-      where: {
-        entityType,
-        entityId,
-      },
-      include: {
-        uploadedBy: {
-          select: { id: true, name: true, email: true },
-        },
-        versions: {
-          orderBy: { version: 'desc' },
-          take: 1, // Latest version
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // If entityType and entityId are provided, filter by them
+    // Otherwise, return all documents (for dashboard)
+    const where: any = {};
+    if (entityType && entityId) {
+      where.entityType = entityType;
+      where.entityId = entityId;
+    }
 
-    return NextResponse.json(documents);
+    const [documents, total] = await Promise.all([
+      p.document.findMany({
+        where,
+        include: {
+          uploadedBy: {
+            select: { id: true, name: true, email: true },
+          },
+          product: {
+            select: { id: true, name: true, srplId: true },
+          },
+          customer: {
+            select: { id: true, companyName: true, srplId: true },
+          },
+          versions: {
+            orderBy: { version: 'desc' },
+            take: 1, // Latest version
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: page * limit,
+        take: limit,
+      }),
+      p.document.count({ where }),
+    ]);
+
+    // If entityType/entityId provided, return array (backward compatible)
+    // Otherwise, return paginated response
+    if (entityType && entityId) {
+      return NextResponse.json(documents);
+    }
+
+    return NextResponse.json({
+      documents,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     console.error('Failed to fetch documents:', error);
     return NextResponse.json({ error: 'Failed to fetch documents' }, { status: 500 });
@@ -75,9 +101,12 @@ export async function POST(req: Request) {
     const productId = formData.get('productId') as string | null;
     const customerId = formData.get('customerId') as string | null;
 
-    if (!file || !entityType || !entityId || !name || !type) {
+    if (!file || !entityType || !entityId || !type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+
+    // Use filename as document name if name is not provided
+    const documentName = name || file.name;
 
     // Validate file type
     const fileTypeValidation = validateFileType(file.type, file.name);
@@ -135,7 +164,7 @@ export async function POST(req: Request) {
     // Create document record
     const document = await p.document.create({
       data: {
-        name,
+        name: documentName,
         type,
         description,
         entityType,
