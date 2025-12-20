@@ -26,10 +26,17 @@ function LoginForm() {
     e.preventDefault();
     setIsSubmitting(true);
 
+    let timeoutId: NodeJS.Timeout | null = null;
+    let controller: AbortController | null = null;
+
     try {
       // Add timeout to prevent hanging (30 seconds max)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        if (controller) {
+          controller.abort();
+        }
+      }, 30000);
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -38,7 +45,11 @@ function LoginForm() {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      // Clear timeout on successful response
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -65,21 +76,31 @@ function LoginForm() {
 
       router.push(redirectTo);
     } catch (error) {
-      console.error('Login error', error);
-      
-      if (error instanceof Error && error.name === 'AbortError') {
+      // Clear timeout if still active
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      // Handle abort errors silently (timeout was intentional)
+      if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
         toast({
           variant: 'destructive',
           title: 'Login timeout',
           description: 'The login request took too long. Please try again.',
         });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Login failed',
-          description: 'Unexpected error. Please try again.',
-        });
+        return;
       }
+
+      // Log other errors but don't show abort errors in console
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        console.error('Login error', error);
+      }
+
+      toast({
+        variant: 'destructive',
+        title: 'Login failed',
+        description: 'Unexpected error. Please try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }
