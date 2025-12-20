@@ -41,18 +41,19 @@ export async function checkSuspiciousActivity(userId: string, ipAddress: string)
   }
 
   // Check for unusual IP addresses (different from last successful login)
-  const recentLogins = await prisma.auditLog.findMany({
+  // Optimized: Only fetch the most recent login, not 5
+  const recentLogin = await prisma.auditLog.findFirst({
     where: {
       userId,
       action: 'login',
     },
     orderBy: { timestamp: 'desc' },
-    take: 5,
+    select: { ipAddress: true },
   });
 
-  if (recentLogins.length > 0) {
-    const lastLoginIP = recentLogins[0].ipAddress;
-    if (lastLoginIP && lastLoginIP !== ipAddress && lastLoginIP !== 'unknown') {
+  if (recentLogin && recentLogin.ipAddress) {
+    const lastLoginIP = recentLogin.ipAddress;
+    if (lastLoginIP !== ipAddress && lastLoginIP !== 'unknown') {
       alerts.push({
         type: 'unusual_access',
         severity: 'medium',

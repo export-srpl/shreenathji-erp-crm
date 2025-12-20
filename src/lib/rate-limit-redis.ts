@@ -37,7 +37,7 @@ export async function rateLimitRedis(
   const windowStart = now - windowMs;
 
   try {
-    // Use Redis sorted set to track requests
+    // Use Redis sorted set to track requests with timeout
     const pipeline = redis.pipeline();
 
     // Remove old entries
@@ -52,7 +52,13 @@ export async function rateLimitRedis(
     // Set expiration
     pipeline.expire(key, Math.ceil(windowMs / 1000));
 
-    const results = await pipeline.exec();
+    // Execute with timeout (500ms max)
+    const results = await Promise.race([
+      pipeline.exec(),
+      new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('Redis timeout')), 500)
+      ),
+    ]) as any;
 
     if (!results) {
       throw new Error('Redis pipeline failed');
@@ -65,14 +71,14 @@ export async function rateLimitRedis(
     const resetTime = now + windowMs;
 
     if (!allowed) {
-      // Remove the request we just added
-      await redis.zremrangebyrank(key, -1, -1);
+      // Remove the request we just added (non-blocking)
+      redis.zremrangebyrank(key, -1, -1).catch(() => {});
     }
 
     return { allowed, remaining, resetTime };
   } catch (error) {
     console.error('Redis rate limit error:', error);
-    // Fallback to allowing the request if Redis fails
+    // Fallback to allowing the request if Redis fails (fail open for availability)
     return { allowed: true, remaining: maxRequests - 1, resetTime: now + windowMs };
   }
 }

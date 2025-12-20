@@ -27,17 +27,25 @@ function LoginForm() {
     setIsSubmitting(true);
 
     try {
+      // Add timeout to prevent hanging (30 seconds max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
         toast({
           variant: 'destructive',
           title: 'Login failed',
-          description: 'Invalid email or password.',
+          description: errorData.error || 'Invalid email or password.',
         });
         return;
       }
@@ -58,11 +66,20 @@ function LoginForm() {
       router.push(redirectTo);
     } catch (error) {
       console.error('Login error', error);
-      toast({
-        variant: 'destructive',
-        title: 'Login failed',
-        description: 'Unexpected error. Please try again.',
-      });
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast({
+          variant: 'destructive',
+          title: 'Login timeout',
+          description: 'The login request took too long. Please try again.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Unexpected error. Please try again.',
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

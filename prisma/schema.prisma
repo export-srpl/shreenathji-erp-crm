@@ -75,6 +75,7 @@ model AuditLog {
   @@index([resource, resourceId])
   @@index([action])
   @@index([timestamp])
+  @@index([userId, action, timestamp]) // Composite index for security monitoring queries
 }
 
 // Unified Activity Timeline

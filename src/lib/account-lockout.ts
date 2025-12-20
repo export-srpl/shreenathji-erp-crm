@@ -5,8 +5,26 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
  * Check if an account is locked
+ * Optimized: Accept lockedUntil directly to avoid extra query
  */
-export async function isAccountLocked(userId: string): Promise<boolean> {
+export async function isAccountLocked(userId: string, lockedUntil?: Date | null): Promise<boolean> {
+  // If lockedUntil is provided, use it directly (optimization)
+  if (lockedUntil !== undefined) {
+    if (!lockedUntil) return false;
+    const now = new Date();
+    if (lockedUntil < now) {
+      // Unlock in background (non-blocking)
+      const prisma = await getPrismaClient();
+      prisma.user.update({
+        where: { id: userId },
+        data: { lockedUntil: null, failedLoginAttempts: 0 },
+      }).catch(() => {});
+      return false;
+    }
+    return true;
+  }
+
+  // Fallback: query database if lockedUntil not provided
   const prisma = await getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -19,14 +37,14 @@ export async function isAccountLocked(userId: string): Promise<boolean> {
 
   // Check if lockout has expired
   if (user.lockedUntil < new Date()) {
-    // Unlock the account
-    await prisma.user.update({
+    // Unlock the account (non-blocking)
+    prisma.user.update({
       where: { id: userId },
       data: {
         lockedUntil: null,
         failedLoginAttempts: 0,
       },
-    });
+    }).catch(() => {});
     return false;
   }
 

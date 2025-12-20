@@ -59,10 +59,14 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
       };
     }
 
-    // Check if session has timed out due to inactivity
-    const { isSessionTimedOut, updateSessionActivity } = await import('./session-timeout');
-    if (await isSessionTimedOut(sessionCookie.value)) {
-      await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
+    // Check if session has timed out due to inactivity (optimized - check in-memory first)
+    const now = new Date();
+    const timeSinceLastActivity = Date.now() - session.lastActivityAt.getTime();
+    const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    
+    if (session.expiresAt < now || timeSinceLastActivity > SESSION_TIMEOUT_MS) {
+      // Session expired or timed out - delete in background
+      prisma.session.delete({ where: { id: session.id } }).catch(() => {});
       return {
         userId: null,
         firebaseUid: null,
@@ -71,8 +75,14 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
       };
     }
 
-    // Update session activity
-    await updateSessionActivity(sessionCookie.value);
+    // Update session activity (non-blocking if not critical)
+    // Only update if last activity was more than 1 minute ago to reduce DB writes
+    if (timeSinceLastActivity > 60 * 1000) {
+      prisma.session.updateMany({
+        where: { token: sessionCookie.value },
+        data: { lastActivityAt: now },
+      }).catch(() => {}); // Non-blocking
+    }
 
     const user = session.user;
     if (!user) {
