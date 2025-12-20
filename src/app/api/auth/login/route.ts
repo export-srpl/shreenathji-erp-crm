@@ -167,30 +167,7 @@ export async function POST(req: Request) {
   const sessionToken = crypto.randomBytes(32).toString('hex');
   const sessionExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-  // Clean up old sessions for this user (keep max 3 most recent sessions)
-  // This prevents session bloat and improves security
-  const cleanupOldSessions = prisma.session.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true },
-    take: 3, // Keep only the 3 most recent sessions
-  }).then(async (recentSessions: Array<{ id: string }>) => {
-    if (recentSessions.length >= 3) {
-      // Delete all sessions except the 3 most recent
-      const keepIds = recentSessions.map((s: { id: string }) => s.id);
-      await prisma.session.deleteMany({
-        where: {
-          userId: user.id,
-          id: { notIn: keepIds },
-        },
-      });
-    }
-  }).catch((error: any) => {
-    console.error('Failed to cleanup old sessions:', error);
-    // Non-blocking - continue with login even if cleanup fails
-  });
-
-  // Create session, reset attempts, and cleanup old sessions in parallel
+  // Create session and reset attempts in parallel
   const [session] = await Promise.all([
     prisma.session.create({
       data: {
@@ -202,8 +179,35 @@ export async function POST(req: Request) {
       },
     }),
     resetPromise,
-    cleanupOldSessions,
   ]);
+
+  // Clean up old sessions AFTER new session is created (non-blocking background task)
+  // Keep max 3 most recent sessions per user to prevent database bloat
+  runInBackground(
+    (async () => {
+      try {
+        const allSessions = await prisma.session.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+
+        // If we have more than 3 sessions, delete the oldest ones
+        if (allSessions.length > 3) {
+          const keepIds = allSessions.slice(0, 3).map((s: { id: string }) => s.id);
+          await prisma.session.deleteMany({
+            where: {
+              userId: user.id,
+              id: { notIn: keepIds },
+            },
+          });
+        }
+      } catch (error: any) {
+        console.error('Failed to cleanup old sessions (non-blocking):', error);
+        // Non-blocking - login continues even if cleanup fails
+      }
+    })()
+  );
 
   // Check if 2FA is enabled
   if (user.is2FAEnabled) {
