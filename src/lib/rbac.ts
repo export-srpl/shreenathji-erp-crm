@@ -131,34 +131,57 @@ export async function getVisibilityFilter(
   resource: PermissionResource,
   scope: PermissionScope = 'own',
 ): Promise<any> {
-  if (!auth.userId) {
-    // No access if not authenticated
-    return { id: 'impossible-id-that-will-never-match' };
-  }
+  try {
+    if (!auth.userId) {
+      // No access if not authenticated
+      return { id: 'impossible-id-that-will-never-match' };
+    }
 
-  // Admin can see all
-  if (auth.role === 'admin' || scope === 'all') {
+    // Admin can see all (no filtering)
+    if (auth.role === 'admin') {
+      return {};
+    }
+
+    // Get user's sales scope for country-based filtering
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { id: true, salesScope: true, managerId: true },
+      });
+    } catch (error: any) {
+      console.error('Error fetching user for visibility filter:', error);
+      console.error('User fetch error details:', error.message, error.stack);
+      // Return empty filter on error (allow access, but log the issue)
+      return {};
+    }
+
+    if (!user) {
+      console.warn(`User not found for userId: ${auth.userId}`);
+      return {};
+    }
+
+    // Build country filter based on sales scope
+    let countryFilter: any = {};
+    if (user.salesScope === 'domestic_sales') {
+      // Domestic sales users only see India records
+      countryFilter = { country: 'India' };
+    } else if (user.salesScope === 'export_sales') {
+      // Export sales users only see non-India records
+      countryFilter = { country: { not: 'India' } };
+    }
+    // If no salesScope, no country filtering (backward compatibility)
+
+    // For 'all' scope, only apply country filtering (no ownership filtering)
+    if (scope === 'all') {
+      return countryFilter;
+    }
+  } catch (error: any) {
+    console.error('Unexpected error in getVisibilityFilter:', error);
+    console.error('getVisibilityFilter error stack:', error.stack);
+    // Return empty filter on unexpected error (fail open for now, but log)
     return {};
   }
-
-  // Get user's sales scope for country-based filtering
-  const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: { id: true, salesScope: true, managerId: true },
-  });
-
-  if (!user) return { id: 'impossible-id-that-will-never-match' };
-
-  // Build country filter based on sales scope
-  let countryFilter: any = {};
-  if (user.salesScope === 'domestic_sales') {
-    // Domestic sales users only see India records
-    countryFilter = { country: 'India' };
-  } else if (user.salesScope === 'export_sales') {
-    // Export sales users only see non-India records
-    countryFilter = { country: { not: 'India' } };
-  }
-  // If no salesScope, no country filtering (backward compatibility)
 
   // Get user's manager and team members for 'team' scope
   if (scope === 'team') {

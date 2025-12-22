@@ -32,12 +32,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   
-  // Auth routes that should not show sidebar or main CRM chrome
+  // Auth routes and public routes that should not show sidebar or main CRM chrome
   const isAuthRoute =
     pathname === '/login' ||
     pathname === '/login/verify-2fa' ||
     pathname === '/reset-password' ||
-    pathname.startsWith('/reset-password/');
+    pathname.startsWith('/reset-password/') ||
+    pathname.startsWith('/lead-form/') ||
+    pathname === null; // 404 page (pathname is null for not-found)
 
   // Fetch current user on mount
   useEffect(() => {
@@ -89,7 +91,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }
 
   // On auth pages (login, reset password), render a minimal layout with no sidebar or navigation.
+  // Lead forms have their own layout, so we skip MainLayout entirely for them.
   if (isAuthRoute) {
+    // For lead forms, just render children (they have their own layout)
+    if (pathname.startsWith('/lead-form/')) {
+      return <>{children}</>;
+    }
+    // For auth pages, use centered layout
     return <main className="min-h-screen flex items-center justify-center bg-muted px-4">{children}</main>;
   }
 

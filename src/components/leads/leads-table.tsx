@@ -78,6 +78,7 @@ export function LeadsTable() {
   const { toast } = useToast();
   const router = useRouter();
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -328,32 +329,57 @@ export function LeadsTable() {
                             if (Array.isArray(productData) && productData.length > 0) {
                               const productNames = productData
                                 .map((p: any) => {
+                                  if (!p.productId) return null;
                                   const product = products.find(prod => prod.id === p.productId);
-                                  return product ? product.name : p.productId;
+                                  return product ? product.name : null;
                                 })
-                                .filter(Boolean);
-                              return productNames.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {productNames.map((name: string, idx: number) => (
-                                    <Badge key={idx} variant="outline" className="font-normal text-xs">
-                                      {name}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              ) : (
+                                .filter((name): name is string => Boolean(name));
+                              
+                              // If we found product names, display them
+                              if (productNames.length > 0) {
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {productNames.map((name: string, idx: number) => (
+                                      <Badge key={idx} variant="outline" className="font-normal text-xs">
+                                        {name}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              
+                              // If products array is empty (still loading), show loading state
+                              if (products.length === 0) {
+                                return (
+                                  <span className="text-muted-foreground text-xs">Loading...</span>
+                                );
+                              }
+                              
+                              // If no products found, show fallback
+                              return (
                                 <span className="text-muted-foreground text-sm">-</span>
                               );
                             }
-                            // Fallback for old format (string)
-                            return (
-                              <Badge variant="outline" className="font-normal">
+                            // Fallback for old format (string) - try to find product by name or ID
+                            const product = products.find(p => p.name === lead.productInterest || p.id === lead.productInterest);
+                            return product ? (
+                              <Badge variant="outline" className="font-normal text-xs">
+                                {product.name}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="font-normal text-xs">
                                 {lead.productInterest}
                               </Badge>
                             );
                           } catch {
-                            // If not JSON, display as-is
-                            return (
-                              <Badge variant="outline" className="font-normal">
+                            // If not JSON, try to find product by the string value
+                            const product = products.find(p => p.name === lead.productInterest || p.id === lead.productInterest);
+                            return product ? (
+                              <Badge variant="outline" className="font-normal text-xs">
+                                {product.name}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="font-normal text-xs">
                                 {lead.productInterest}
                               </Badge>
                             );

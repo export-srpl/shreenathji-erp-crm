@@ -83,7 +83,10 @@ export default function CustomersPage() {
         setIsLoading(true);
         const res = await fetch('/api/customers');
         if (!res.ok) {
-          throw new Error('Failed to fetch customers');
+          const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+          const errorMessage = errorData.error || errorData.details || 'Failed to fetch customers';
+          console.error('API Error:', errorMessage, 'Status:', res.status);
+          throw new Error(errorMessage);
         }
         const data = await res.json();
 

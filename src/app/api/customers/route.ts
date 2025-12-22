@@ -7,141 +7,409 @@ import { logActivity } from '@/lib/activity-logger';
 
 // GET /api/customers - list customers
 export async function GET(req: Request) {
-  // SECURITY: Require authentication
-  const authError = await requireAuth();
-  if (authError) return authError;
+  try {
+    // SECURITY: Require authentication
+    const authError = await requireAuth();
+    if (authError) {
+      console.error('Authentication failed:', authError.status);
+      return authError;
+    }
 
-  const prisma = await getPrismaClient();
-  const auth = await getAuthContext(req);
+    let prisma;
+    try {
+      prisma = await getPrismaClient();
+    } catch (prismaError: any) {
+      console.error('Error getting Prisma client:', prismaError);
+      return NextResponse.json(
+        { error: 'Database connection error', details: prismaError.message },
+        { status: 500 }
+      );
+    }
 
-  // Get visibility filter based on user's scope (includes country filtering for salesScope)
-  const { getVisibilityFilter } = await import('@/lib/rbac');
-  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'customer', 'all');
+    let auth;
+    try {
+      auth = await getAuthContext(req);
+    } catch (authError: any) {
+      console.error('Error getting auth context:', authError);
+      return NextResponse.json(
+        { error: 'Authentication error', details: authError.message },
+        { status: 500 }
+      );
+    }
 
-  const customers = await prisma.customer.findMany({
-    where: visibilityFilter,
-    select: {
-      id: true,
-      companyName: true,
-      customerType: true,
-      contactName: true,
-      contactEmail: true,
-      contactPhone: true,
-      contactTitle: true,
-      billingAddress: true,
-      shippingAddress: true,
-      country: true,
-      state: true,
-      city: true,
-      gstNo: true,
-      currency: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+    if (!auth.userId) {
+      console.error('No userId in auth context');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  return NextResponse.json(customers);
+    // Get visibility filter based on user's scope (includes country filtering for salesScope)
+    let visibilityFilter: any = {};
+    try {
+      const { getVisibilityFilter } = await import('@/lib/rbac');
+      visibilityFilter = await getVisibilityFilter(prisma, auth, 'customer', 'all');
+    } catch (rbacError: any) {
+      console.error('Error getting visibility filter:', rbacError);
+      console.error('RBAC error stack:', rbacError.stack);
+      // Fallback: if RBAC fails, admin sees all, others see none
+      if (auth.role === 'admin') {
+        visibilityFilter = {};
+      } else {
+        // For non-admin, try to get salesScope directly
+        try {
+          const user = await prisma.user.findUnique({
+            where: { id: auth.userId },
+            select: { salesScope: true },
+          });
+          if (user?.salesScope === 'domestic_sales') {
+            visibilityFilter = { country: 'India' };
+          } else if (user?.salesScope === 'export_sales') {
+            visibilityFilter = { country: { not: 'India' } };
+          } else {
+            visibilityFilter = {};
+          }
+        } catch (userError: any) {
+          console.error('Error fetching user for fallback filter:', userError);
+          visibilityFilter = {};
+        }
+      }
+    }
+
+    // Ensure visibilityFilter is a valid object
+    if (!visibilityFilter || typeof visibilityFilter !== 'object' || Array.isArray(visibilityFilter)) {
+      console.warn('Invalid visibility filter, using empty object');
+      visibilityFilter = {};
+    }
+
+    // Clean the filter - remove any undefined or null values that might cause Prisma errors
+    const cleanFilter: any = {};
+    for (const [key, value] of Object.entries(visibilityFilter)) {
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Recursively clean nested objects
+          const cleanNested: any = {};
+          for (const [nestedKey, nestedValue] of Object.entries(value)) {
+            if (nestedValue !== undefined && nestedValue !== null) {
+              cleanNested[nestedKey] = nestedValue;
+            }
+          }
+          if (Object.keys(cleanNested).length > 0) {
+            cleanFilter[key] = cleanNested;
+          }
+        } else {
+          cleanFilter[key] = value;
+        }
+      }
+    }
+
+    console.log('Fetching customers with filter:', JSON.stringify(cleanFilter));
+    console.log('User role:', auth.role);
+    console.log('User salesScope:', auth.salesScope);
+    
+    // Build where clause - ensure it's valid
+    const whereClause = Object.keys(cleanFilter).length > 0 ? cleanFilter : undefined;
+    
+    let customers;
+    try {
+      // First, try a simple query to test database connection
+      try {
+        const testQuery = await prisma.customer.count();
+        console.log(`Database connection OK. Total customers in DB: ${testQuery}`);
+      } catch (testError: any) {
+        console.error('Database connection test failed:', testError);
+        console.error('Test error details:', {
+          name: testError.name,
+          code: testError.code,
+          message: testError.message
+        });
+        return NextResponse.json(
+          { 
+            error: 'Database connection failed', 
+            details: testError.message,
+            code: testError.code || 'CONNECTION_ERROR'
+          },
+          { status: 500 }
+        );
+      }
+      
+      // Now run the actual query
+      customers = await prisma.customer.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          companyName: true,
+          customerType: true,
+          contactName: true,
+          contactEmail: true,
+          contactPhone: true,
+          contactTitle: true,
+          billingAddress: true,
+          shippingAddress: true,
+          country: true,
+          state: true,
+          city: true,
+          gstNo: true,
+          currency: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (dbError: any) {
+      console.error('Database query error:', dbError);
+      console.error('Database error name:', dbError.name);
+      console.error('Database error code:', dbError.code);
+      console.error('Database error message:', dbError.message);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Database error stack:', dbError.stack);
+      }
+      console.error('Filter that caused error:', JSON.stringify(cleanFilter));
+      console.error('Where clause:', JSON.stringify(whereClause));
+      
+      // Try a fallback query without filter
+      try {
+        console.log('Attempting fallback query without filter...');
+        customers = await prisma.customer.findMany({
+          select: {
+            id: true,
+            companyName: true,
+            customerType: true,
+            contactName: true,
+            contactEmail: true,
+            contactPhone: true,
+            contactTitle: true,
+            billingAddress: true,
+            shippingAddress: true,
+            country: true,
+            state: true,
+            city: true,
+            gstNo: true,
+            currency: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100, // Limit to prevent huge results
+        });
+        console.log('Fallback query succeeded, returning limited results');
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError);
+        console.error('Fallback error details:', {
+          name: fallbackError.name,
+          code: fallbackError.code,
+          message: fallbackError.message
+        });
+        return NextResponse.json(
+          { 
+            error: 'Database query failed', 
+            details: dbError.message || 'Unknown database error',
+            code: dbError.code || 'UNKNOWN_ERROR',
+            name: dbError.name || 'Error',
+            fallbackError: fallbackError.message,
+            stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    console.log(`Found ${customers.length} customers`);
+    return NextResponse.json(customers);
+  } catch (error: any) {
+    console.error('Unexpected error fetching customers:', error);
+    console.error('Error stack:', error.stack);
+    return NextResponse.json(
+      { 
+        error: 'Failed to fetch customers', 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
+      { status: 500 }
+    );
+  }
 }
 
 // POST /api/customers - create a new customer
 export async function POST(req: Request) {
-  const prisma = await getPrismaClient();
-  const auth = await getAuthContext(req);
-  
-  // Check permission - allow admin or users with salesScope
-  const { hasPermission } = await import('@/lib/rbac');
-  const canCreate = auth.role === 'admin' || auth.salesScope === 'export_sales' || auth.salesScope === 'domestic_sales';
-  if (!canCreate || !auth.userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  try {
+    // SECURITY: Require authentication
+    const authError = await requireAuth();
+    if (authError) {
+      console.error('Authentication failed in POST:', authError.status);
+      return authError;
+    }
 
-  const body = await req.json();
+    let prisma;
+    try {
+      prisma = await getPrismaClient();
+    } catch (prismaError: any) {
+      console.error('Error getting Prisma client in POST:', prismaError);
+      return NextResponse.json(
+        { error: 'Database connection error', details: prismaError.message },
+        { status: 500 }
+      );
+    }
 
-  // Enforce country restriction based on salesScope
-  if (auth.salesScope === 'domestic_sales' && body.country !== 'India') {
-    return NextResponse.json(
-      { error: 'Domestic Sales users can only create companies for India' },
-      { status: 403 }
-    );
-  }
-  if (auth.salesScope === 'export_sales' && body.country === 'India') {
-    return NextResponse.json(
-      { error: 'Export Sales users can only create companies for countries other than India' },
-      { status: 403 }
-    );
-  }
+    let auth;
+    try {
+      auth = await getAuthContext(req);
+    } catch (authError: any) {
+      console.error('Error getting auth context in POST:', authError);
+      return NextResponse.json(
+        { error: 'Authentication error', details: authError.message },
+        { status: 500 }
+      );
+    }
 
-  // SECURITY: Validate and sanitize input
-  const validationData = {
-    companyName: body.companyName,
-    customerType: body.customerType,
-    country: body.country,
-    state: body.state,
-    city: body.city,
-    gstNo: body.gstNo,
-    billingAddress: body.billingAddress,
-    shippingAddress: body.shippingAddress,
-    contactName: body.contactPerson?.name,
-    contactEmail: body.contactPerson?.email,
-    contactPhone: body.contactPerson?.phone,
-    contactTitle: body.contactPerson?.designation,
-    currency: body.currency,
-  };
+    if (!auth.userId) {
+      console.error('No userId in auth context for POST');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const validation = validateInput(customerSchema, validationData);
-  if (!validation.success) {
+    // Check permission - allow admin or users with salesScope
+    const canCreate = auth.role === 'admin' || auth.salesScope === 'export_sales' || auth.salesScope === 'domestic_sales';
+    if (!canCreate) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch (jsonError: any) {
+      console.error('Error parsing request body:', jsonError);
+      return NextResponse.json(
+        { error: 'Invalid request body', details: jsonError.message },
+        { status: 400 }
+      );
+    }
+
+    // Enforce country restriction based on salesScope
+    if (auth.salesScope === 'domestic_sales' && body.country !== 'India') {
+      return NextResponse.json(
+        { error: 'Domestic Sales users can only create companies for India' },
+        { status: 403 }
+      );
+    }
+    if (auth.salesScope === 'export_sales' && body.country === 'India') {
+      return NextResponse.json(
+        { error: 'Export Sales users can only create companies for countries other than India' },
+        { status: 403 }
+      );
+    }
+
+    // SECURITY: Validate and sanitize input
+    const validationData = {
+      companyName: body.companyName,
+      customerType: body.customerType,
+      country: body.country,
+      state: body.state,
+      city: body.city,
+      gstNo: body.gstNo,
+      billingAddress: body.billingAddress,
+      shippingAddress: body.shippingAddress,
+      contactName: body.contactPerson?.name || body.contactName,
+      contactEmail: body.contactPerson?.email || body.contactEmail,
+      contactPhone: body.contactPerson?.phone || body.contactPhone,
+      contactTitle: body.contactPerson?.designation || body.contactTitle,
+      currency: body.currency,
+    };
+
+    const validation = validateInput(customerSchema, validationData);
+    if (!validation.success) {
+      console.error('Validation failed:', validation.error.errors);
+      return NextResponse.json(
+        { 
+          error: 'Validation failed', 
+          details: validation.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        },
+        { status: 400 }
+      );
+    }
+
+    const validatedData = validation.data;
+
+    // Set default currency for non-India customers if not provided
+    let currencyValue = validatedData.currency;
+    if (!currencyValue && validatedData.country !== 'India') {
+      currencyValue = 'USD'; // Default to USD for export customers
+    }
+
+    let customer;
+    try {
+      // Test database connection first
+      await prisma.customer.count();
+
+      // Create customer
+      customer = await prisma.customer.create({
+        data: {
+          companyName: validatedData.companyName,
+          customerType: validatedData.customerType,
+          country: validatedData.country,
+          state: validatedData.state || null,
+          city: validatedData.city || null,
+          gstNo: validatedData.gstNo || null,
+          billingAddress: validatedData.billingAddress || null,
+          shippingAddress: validatedData.shippingAddress || null,
+          contactName: validatedData.contactName || null,
+          contactEmail: validatedData.contactEmail || null,
+          contactPhone: validatedData.contactPhone || null,
+          contactTitle: validatedData.contactTitle || null,
+          currency: currencyValue || null,
+        },
+      });
+    } catch (dbError: any) {
+      console.error('Database error creating customer:', dbError);
+      console.error('Database error name:', dbError.name);
+      console.error('Database error code:', dbError.code);
+      console.error('Database error message:', dbError.message);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Database error stack:', dbError.stack);
+      }
+      console.error('Customer data that caused error:', JSON.stringify(validatedData));
+      
+      return NextResponse.json(
+        { 
+          error: 'Database query failed', 
+          details: dbError.message || 'Failed to create customer',
+          code: dbError.code || 'UNKNOWN_ERROR',
+          name: dbError.name || 'Error',
+          stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+        },
+        { status: 500 }
+      );
+    }
+
+    // Log activity: customer created (non-blocking)
+    try {
+      await logActivity({
+        prisma,
+        module: 'CUST',
+        entityType: 'customer',
+        entityId: customer.id,
+        srplId: (customer as any).srplId || undefined,
+        action: 'create',
+        description: `Customer created: ${customer.companyName}`,
+        metadata: {
+          customerType: customer.customerType,
+          country: customer.country,
+        },
+        performedById: auth.userId,
+      });
+    } catch (logError: any) {
+      // Don't fail the request if logging fails
+      console.error('Failed to log activity:', logError);
+    }
+
+    return NextResponse.json(customer, { status: 201 });
+  } catch (error: any) {
+    console.error('Unexpected error creating customer:', error);
+    console.error('Error stack:', error.stack);
     return NextResponse.json(
       { 
-        error: 'Validation failed', 
-        details: validation.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        error: 'Failed to create customer', 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
-
-  const validatedData = validation.data;
-
-  // Set default currency for non-India customers if not provided
-  let currencyValue = validatedData.currency;
-  if (!currencyValue && validatedData.country !== 'India') {
-    currencyValue = 'USD'; // Default to USD for export customers
-  }
-
-  const customer = await prisma.customer.create({
-    data: {
-      companyName: validatedData.companyName,
-      customerType: validatedData.customerType,
-      country: validatedData.country,
-      state: validatedData.state,
-      city: validatedData.city,
-      gstNo: validatedData.gstNo,
-      billingAddress: validatedData.billingAddress,
-      shippingAddress: validatedData.shippingAddress,
-      contactName: validatedData.contactName,
-      contactEmail: validatedData.contactEmail,
-      contactPhone: validatedData.contactPhone,
-      contactTitle: validatedData.contactTitle,
-      currency: currencyValue,
-    },
-  });
-
-  // Log activity: customer created
-  await logActivity({
-    prisma,
-    module: 'CUST',
-    entityType: 'customer',
-    entityId: customer.id,
-    srplId: (customer as any).srplId || undefined,
-    action: 'create',
-    description: `Customer created: ${customer.companyName}`,
-    metadata: {
-      customerType: customer.customerType,
-      country: customer.country,
-    },
-    performedById: auth.userId,
-  });
-
-  return NextResponse.json(customer, { status: 201 });
 }
 
 

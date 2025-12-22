@@ -45,16 +45,60 @@ const exportColumns: ExportColumn[] = [
 export default function LeadsReportPage() {
   const { toast } = useToast();
   const [leads, setLeads] = useState<LeadReport[]>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLeads = async () => {
+    const formatProductInterest = (productInterest: string | null | undefined, productsList: Array<{ id: string; name: string }>): string => {
+      if (!productInterest) return '';
+      
+      try {
+        const productData = JSON.parse(productInterest);
+        if (Array.isArray(productData) && productData.length > 0) {
+          const productNames = productData
+            .map((p: any) => {
+              if (!p.productId) return null;
+              const product = productsList.find(prod => prod.id === p.productId);
+              return product ? product.name : null;
+            })
+            .filter((name): name is string => Boolean(name));
+          
+          return productNames.length > 0 ? productNames.join(', ') : '';
+        }
+      } catch {
+        // If not JSON, try to find product by the string value
+        const product = productsList.find(p => p.name === productInterest || p.id === productInterest);
+        return product ? product.name : productInterest;
+      }
+      
+      return '';
+    };
+
+    const loadData = async () => {
       try {
         setIsLoading(true);
-        const res = await fetch('/api/leads');
-        if (!res.ok) throw new Error('Failed to fetch leads');
-        const data = await res.json();
         
+        // Fetch products and leads in parallel
+        const [productsRes, leadsRes] = await Promise.all([
+          fetch('/api/products'),
+          fetch('/api/leads')
+        ]);
+        
+        if (!leadsRes.ok) throw new Error('Failed to fetch leads');
+        
+        // Get products data
+        let productsList: Array<{ id: string; name: string }> = [];
+        if (productsRes.ok) {
+          const productsData = await productsRes.json();
+          productsList = productsData.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.productName || '',
+          }));
+          setProducts(productsList);
+        }
+        
+        // Get leads data and format with products
+        const data = await leadsRes.json();
         const formattedLeads: LeadReport[] = data.map((lead: any) => ({
           id: lead.id,
           companyName: lead.companyName || '',
@@ -66,7 +110,7 @@ export default function LeadsReportPage() {
           country: lead.country || '',
           state: lead.state || '',
           city: lead.city || '',
-          productInterest: lead.productInterest || '',
+          productInterest: formatProductInterest(lead.productInterest, productsList),
           application: lead.application || '',
           monthlyRequirement: lead.monthlyRequirement || '',
           followUpDate: lead.followUpDate ? formatDateForExport(lead.followUpDate) : '',
@@ -75,7 +119,7 @@ export default function LeadsReportPage() {
         
         setLeads(formattedLeads);
       } catch (error) {
-        console.error('Failed to fetch leads:', error);
+        console.error('Failed to fetch data:', error);
         toast({
           variant: 'destructive',
           title: 'Failed to load leads',
@@ -86,7 +130,7 @@ export default function LeadsReportPage() {
       }
     };
 
-    fetchLeads();
+    loadData();
   }, [toast]);
 
   const handleExport = (format: 'csv' | 'excel') => {
