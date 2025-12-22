@@ -13,18 +13,28 @@ type Params = {
  * Generate and return a PDF for the specified proforma invoice
  */
 export async function GET(req: Request, { params }: Params) {
+  const proformaId = params.id;
+  console.log('[PDF API] Starting PDF generation for proforma invoice:', proformaId);
+  
   try {
     // Check authentication
+    console.log('[PDF API] Checking authentication');
     const authError = await requireAuth();
-    if (authError) return authError;
+    if (authError) {
+      console.error('[PDF API] Authentication failed');
+      return authError;
+    }
 
     const auth = await getAuthContext(req);
     if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales', 'finance'])) {
+      console.error('[PDF API] Authorization failed for user:', auth.userId);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    
+    console.log('[PDF API] Fetching proforma invoice from database');
     const prisma = await getPrismaClient();
     const proforma = await prisma.proformaInvoice.findUnique({
-      where: { id: params.id },
+      where: { id: proformaId },
       include: {
         items: { include: { product: true } },
         customer: true,
@@ -33,21 +43,27 @@ export async function GET(req: Request, { params }: Params) {
     });
 
     if (!proforma) {
+      console.error('[PDF API] Proforma invoice not found:', proformaId);
       return NextResponse.json({ error: 'Proforma invoice not found' }, { status: 404 });
     }
 
+    console.log('[PDF API] Proforma invoice found:', proforma.proformaNumber);
+    console.log('[PDF API] Items count:', proforma.items?.length ?? 0);
+
     if (!proforma.items || proforma.items.length === 0) {
+      console.error('[PDF API] Proforma invoice has no line items');
       return NextResponse.json({ error: 'Proforma invoice has no line items' }, { status: 400 });
     }
 
     // Calculate totals
+    console.log('[PDF API] Calculating line items and totals');
     const items = proforma.items.map((item) => {
       const unitPrice = Number(item.unitPrice) || 0;
       const qty = Number(item.quantity) || 0;
       const discount = (item.discountPct || 0) / 100;
       const amount = unitPrice * qty * (1 - discount);
       return {
-        productName: item.product?.name || 'Product',
+        productName: String(item.product?.name ?? 'Product'),
         quantity: qty,
         unitPrice,
         discountPct: item.discountPct || 0,
@@ -59,12 +75,16 @@ export async function GET(req: Request, { params }: Params) {
       const amount = typeof item.amount === 'number' && !isNaN(item.amount) ? item.amount : 0;
       return sum + amount;
     }, 0);
+    
+    console.log('[PDF API] Subtotal calculated:', subtotal);
 
     // GST logic based on customer country/state
-    const isDomestic = proforma.customer.country === 'India';
+    const isDomestic = String(proforma.customer.country ?? '').toLowerCase() === 'india';
     let sgst = 0;
     let cgst = 0;
     let igst = 0;
+
+    console.log('[PDF API] Customer country:', proforma.customer.country, 'isDomestic:', isDomestic);
 
     if (isDomestic && proforma.customer.state) {
       if (proforma.customer.state === 'Gujarat') {
@@ -77,49 +97,56 @@ export async function GET(req: Request, { params }: Params) {
 
     const taxTotal = sgst + cgst + igst;
     const total = subtotal + taxTotal;
+    
+    console.log('[PDF API] Tax total:', taxTotal, 'Total:', total);
 
     const pdfData = {
-      documentNumber: proforma.proformaNumber,
+      documentNumber: String(proforma.proformaNumber ?? ''),
       documentType: 'Proforma Invoice' as const,
-      issueDate: proforma.issueDate,
-      paymentTerms: proforma.paymentTerms || undefined,
-      incoTerms: proforma.incoTerms || undefined,
-      poNumber: proforma.poNumber || undefined,
-      poDate: proforma.poDate || undefined,
+      issueDate: proforma.issueDate instanceof Date ? proforma.issueDate : new Date(proforma.issueDate),
+      paymentTerms: proforma.paymentTerms ? String(proforma.paymentTerms) : undefined,
+      incoTerms: proforma.incoTerms ? String(proforma.incoTerms) : undefined,
+      poNumber: proforma.poNumber ? String(proforma.poNumber) : undefined,
+      poDate: proforma.poDate ? (proforma.poDate instanceof Date ? proforma.poDate : new Date(proforma.poDate)) : undefined,
       salesPerson: proforma.quote?.salesRep
         ? {
-            name: proforma.quote.salesRep.name || proforma.quote.salesRep.email || 'Sales Person',
-            email: proforma.quote.salesRep.email || undefined,
+            name: String(proforma.quote.salesRep.name ?? proforma.quote.salesRep.email ?? 'Sales Person'),
+            email: proforma.quote.salesRep.email ? String(proforma.quote.salesRep.email) : undefined,
             phone: undefined, // Phone not available from salesRep relation
           }
         : undefined,
       customer: {
-        companyName: proforma.customer.companyName,
-        billingAddress: proforma.customer.billingAddress || undefined,
-        shippingAddress: proforma.customer.shippingAddress || undefined,
-        contactName: proforma.customer.contactName || undefined,
-        contactEmail: proforma.customer.contactEmail || undefined,
-        contactPhone: proforma.customer.contactPhone || undefined,
-        gstNo: proforma.customer.gstNo || undefined,
+        companyName: String(proforma.customer.companyName ?? ''),
+        billingAddress: proforma.customer.billingAddress ? String(proforma.customer.billingAddress) : undefined,
+        shippingAddress: proforma.customer.shippingAddress ? String(proforma.customer.shippingAddress) : undefined,
+        contactName: proforma.customer.contactName ? String(proforma.customer.contactName) : undefined,
+        contactEmail: proforma.customer.contactEmail ? String(proforma.customer.contactEmail) : undefined,
+        contactPhone: proforma.customer.contactPhone ? String(proforma.customer.contactPhone) : undefined,
+        gstNo: proforma.customer.gstNo ? String(proforma.customer.gstNo) : undefined,
       },
       items,
       subtotal,
-      tax: taxTotal
+      tax: taxTotal > 0
         ? {
-            sgst: sgst || undefined,
-            cgst: cgst || undefined,
-            igst: igst || undefined,
+            sgst: sgst > 0 ? sgst : undefined,
+            cgst: cgst > 0 ? cgst : undefined,
+            igst: igst > 0 ? igst : undefined,
             total: taxTotal,
           }
         : undefined,
       total,
-      notes: proforma.notes || undefined,
+      notes: proforma.notes ? String(proforma.notes) : undefined,
       currency: 'INR',
     };
+    
+    console.log('[PDF API] PDF data prepared, validating...');
 
     // Validate PDF data before generation
     if (!pdfData.documentNumber || !pdfData.customer?.companyName) {
-      console.error('Invalid PDF data:', { documentNumber: pdfData.documentNumber, hasCompanyName: !!pdfData.customer?.companyName });
+      console.error('[PDF API] Invalid PDF data:', { 
+        documentNumber: pdfData.documentNumber, 
+        hasCompanyName: !!pdfData.customer?.companyName 
+      });
       return NextResponse.json(
         { error: 'Invalid PDF data', message: 'Missing required fields' },
         { status: 400 }
@@ -127,35 +154,38 @@ export async function GET(req: Request, { params }: Params) {
     }
 
     if (!pdfData.items || pdfData.items.length === 0) {
-      console.error('No items in PDF data');
+      console.error('[PDF API] No items in PDF data');
       return NextResponse.json(
         { error: 'Invalid PDF data', message: 'No line items found' },
         { status: 400 }
       );
     }
 
+    console.log('[PDF API] Calling generateDocumentPDF');
     const pdfBuffer = await generateDocumentPDF(pdfData);
+    console.log('[PDF API] PDF generation completed, buffer size:', pdfBuffer?.length ?? 0);
 
     if (!pdfBuffer || pdfBuffer.length === 0) {
-      console.error('Generated PDF buffer is empty');
+      console.error('[PDF API] Generated PDF buffer is empty');
       return NextResponse.json(
         { error: 'Failed to generate PDF', message: 'PDF buffer is empty' },
         { status: 500 }
       );
     }
 
+    console.log('[PDF API] Returning PDF response, size:', pdfBuffer.length);
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="proforma-${proforma.proformaNumber}.pdf"`,
+        'Content-Disposition': `attachment; filename="proforma-${String(proforma.proformaNumber ?? proformaId)}.pdf"`,
         'Content-Length': pdfBuffer.length.toString(),
       },
     });
   } catch (error: any) {
-    console.error('Failed to generate proforma invoice PDF:', {
+    console.error('[PDF API] Failed to generate proforma invoice PDF:', {
       error: error?.message || error,
       stack: error?.stack,
-      proformaId: params.id,
+      proformaId: proformaId,
     });
     return NextResponse.json(
       { 
