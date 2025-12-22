@@ -26,6 +26,10 @@ export async function GET(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
     }
 
+    if (!quote.items || quote.items.length === 0) {
+      return NextResponse.json({ error: 'Quote has no line items' }, { status: 400 });
+    }
+
     // Calculate totals
     const items = quote.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
@@ -107,9 +111,19 @@ export async function GET(_req: Request, { params }: Params) {
         'Content-Disposition': `attachment; filename="quote-${quote.quoteNumber}.pdf"`,
       },
     });
-  } catch (error) {
-    console.error('Failed to generate quote PDF:', error);
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to generate quote PDF:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      quoteId: params.id,
+    });
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate PDF',
+        message: error?.message || 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 

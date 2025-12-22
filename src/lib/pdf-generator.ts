@@ -48,16 +48,29 @@ export interface PDFDocumentData {
  * Generate a PDF document for quotes, proforma invoices, or invoices
  */
 export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
-      margin: 60,
-      size: 'A4',
-    });
-    const chunks: Buffer[] = [];
+  // Validate required data
+  if (!data.documentNumber || !data.documentType || !data.customer?.companyName) {
+    throw new Error('Missing required PDF data: documentNumber, documentType, or customer.companyName');
+  }
 
-    doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  if (!data.items || data.items.length === 0) {
+    throw new Error('PDF generation requires at least one line item');
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({
+        margin: 60,
+        size: 'A4',
+      });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err) => {
+        console.error('PDFDocument error event:', err);
+        reject(err);
+      });
 
     const brandColor = '#8b0304';
 
@@ -289,7 +302,11 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       doc.moveDown();
     }
 
-    doc.end();
+      doc.end();
+    } catch (error) {
+      console.error('Error during PDF generation:', error);
+      reject(error);
+    }
   });
 }
 

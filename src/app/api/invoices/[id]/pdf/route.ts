@@ -26,6 +26,10 @@ export async function GET(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
+    if (!invoice.items || invoice.items.length === 0) {
+      return NextResponse.json({ error: 'Invoice has no line items' }, { status: 400 });
+    }
+
     // Calculate totals
     const items = invoice.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
@@ -107,9 +111,19 @@ export async function GET(_req: Request, { params }: Params) {
         'Content-Disposition': `attachment; filename="invoice-${invoice.invoiceNumber}.pdf"`,
       },
     });
-  } catch (error) {
-    console.error('Failed to generate invoice PDF:', error);
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to generate invoice PDF:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      invoiceId: params.id,
+    });
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate PDF',
+        message: error?.message || 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 

@@ -26,6 +26,10 @@ export async function GET(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
     }
 
+    if (!order.items || order.items.length === 0) {
+      return NextResponse.json({ error: 'Sales order has no line items' }, { status: 400 });
+    }
+
     // Calculate line items and subtotal
     const items = order.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
@@ -65,10 +69,10 @@ export async function GET(_req: Request, { params }: Params) {
       documentNumber: order.orderNumber,
       documentType: 'Sales Order' as const,
       issueDate: order.orderDate,
-      paymentTerms: salesOrder.paymentTerms || undefined,
-      incoTerms: salesOrder.incoTerms || undefined,
-      poNumber: salesOrder.poNumber || undefined,
-      poDate: salesOrder.poDate || undefined,
+      paymentTerms: order.paymentTerms || undefined,
+      incoTerms: order.incoTerms || undefined,
+      poNumber: order.poNumber || undefined,
+      poDate: order.poDate || undefined,
       salesPerson: order.salesRep
         ? {
             name: order.salesRep.name || order.salesRep.email || '',
@@ -107,9 +111,19 @@ export async function GET(_req: Request, { params }: Params) {
         'Content-Disposition': `attachment; filename="sales-order-${order.orderNumber}.pdf"`,
       },
     });
-  } catch (error) {
-    console.error('Failed to generate sales order PDF:', error);
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to generate sales order PDF:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      salesOrderId: params.id,
+    });
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate PDF',
+        message: error?.message || 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 

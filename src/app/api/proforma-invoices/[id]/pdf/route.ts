@@ -26,6 +26,10 @@ export async function GET(_req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Proforma invoice not found' }, { status: 404 });
     }
 
+    if (!proforma.items || proforma.items.length === 0) {
+      return NextResponse.json({ error: 'Proforma invoice has no line items' }, { status: 400 });
+    }
+
     // Calculate totals
     const items = proforma.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
@@ -107,9 +111,19 @@ export async function GET(_req: Request, { params }: Params) {
         'Content-Disposition': `attachment; filename="proforma-${proforma.proformaNumber}.pdf"`,
       },
     });
-  } catch (error) {
-    console.error('Failed to generate proforma invoice PDF:', error);
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to generate proforma invoice PDF:', {
+      error: error?.message || error,
+      stack: error?.stack,
+      proformaId: params.id,
+    });
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate PDF',
+        message: error?.message || 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 
