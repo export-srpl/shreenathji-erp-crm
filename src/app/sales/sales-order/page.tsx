@@ -22,6 +22,7 @@ const PAGE_SIZE = 10;
 
 type SalesOrder = {
   id: string;
+  srplId?: string | null;
   orderNumber: string;
   status: string;
   orderDate: string;
@@ -171,6 +172,7 @@ export default function SalesOrderPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[140px]">SRPL ID</TableHead>
                             <TableHead>Sales Order #</TableHead>
                             <TableHead>Customer</TableHead>
                             <TableHead>PO Number</TableHead>
@@ -183,6 +185,11 @@ export default function SalesOrderPage() {
                     <TableBody>
                         {paginatedSalesOrders.map((so) => (
                             <TableRow key={so.id} onClick={() => handleRowClick(so.id)} className="cursor-pointer">
+                                <TableCell>
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {(so as any).srplId || '—'}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="font-medium">{so.orderNumber}</TableCell>
                                 <TableCell>{so.customer?.companyName || 'N/A'}</TableCell>
                                 <TableCell>{(so as any).poNumber || 'N/A'}</TableCell>

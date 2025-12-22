@@ -15,6 +15,7 @@ export type Payment = {
 
 export type Deal = {
   id: string;
+  srplId?: string | null;
   title: string;
   company: string;
   value: number;
@@ -30,6 +31,7 @@ export type DealStage = 'Prospecting' | 'Technical Discussion' | 'Quotation' | '
 
 export type Lead = {
   id: string;
+  srplId?: string | null;
   companyName: string;
   contactName: string;
   email: string;
@@ -37,6 +39,8 @@ export type Lead = {
   status: 'New' | 'Contacted' | 'Qualified' | 'Disqualified' | 'Converted';
   leadSource: string;
   assignedSalesperson: string;
+  // For domestic vs international classification from lead capture
+  customerType?: 'domestic' | 'international';
   country: string;
   state?: string;
   billingAddress?: string;
@@ -54,6 +58,7 @@ export type Lead = {
 
 export type Product = {
     id: string;
+    srplId?: string | null;
     productName: string;
     category: string;
     sku?: string;
@@ -62,6 +67,7 @@ export type Product = {
 
 export type Customer = {
     id: string;
+    srplId?: string | null;
     leadId?: string; // Link to the original lead
     customerType: 'domestic' | 'international';
     companyName: string;

@@ -23,6 +23,7 @@ export async function GET(req: Request) {
       where: visibilityFilter,
       select: {
         id: true,
+        srplId: true,
         title: true,
         stage: true,
         createdAt: true,

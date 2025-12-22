@@ -22,6 +22,7 @@ const PAGE_SIZE = 10;
 
 type ProformaInvoice = {
   id: string;
+  srplId?: string | null;
   proformaNumber: string;
   status: string;
   issueDate: string;
@@ -148,6 +149,7 @@ export default function ProformaInvoicePage() {
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-[140px]">SRPL ID</TableHead>
                         <TableHead>Proforma #</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Date</TableHead>
@@ -159,6 +161,11 @@ export default function ProformaInvoicePage() {
                 <TableBody>
                     {paginatedProformas.map((proforma) => (
                         <TableRow key={proforma.id} onClick={() => handleRowClick(proforma.id)} className="cursor-pointer">
+                            <TableCell>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {(proforma as any).srplId || '—'}
+                              </span>
+                            </TableCell>
                             <TableCell className="font-medium">{proforma.proformaNumber}</TableCell>
                             <TableCell>{proforma.customer?.companyName || 'N/A'}</TableCell>
                             <TableCell>{new Date(proforma.issueDate).toLocaleDateString()}</TableCell>

@@ -22,6 +22,7 @@ const PAGE_SIZE = 10;
 
 type Invoice = {
   id: string;
+  srplId?: string | null;
   invoiceNumber: string;
   status: string;
   issueDate: string;
@@ -142,6 +143,7 @@ export default function InvoicesPage() {
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-[140px]">SRPL ID</TableHead>
                         <TableHead>Invoice #</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Date</TableHead>
@@ -153,6 +155,11 @@ export default function InvoicesPage() {
                 <TableBody>
                     {paginatedInvoices.map((invoice) => (
                         <TableRow key={invoice.id} onClick={() => handleRowClick(invoice.id)} className="cursor-pointer">
+                            <TableCell>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {(invoice as any).srplId || '—'}
+                              </span>
+                            </TableCell>
                             <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                             <TableCell>{invoice.customer?.companyName || 'N/A'}</TableCell>
                             <TableCell>{new Date(invoice.issueDate).toLocaleDateString()}</TableCell>

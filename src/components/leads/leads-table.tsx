@@ -34,6 +34,8 @@ const sortOptions: SortOption[] = [
   { value: 'companyName-desc', label: 'Company Name (Z-A)' },
   { value: 'status-asc', label: 'Status (A-Z)' },
   { value: 'status-desc', label: 'Status (Z-A)' },
+  { value: 'srplId-asc', label: 'SRPL ID (A-Z)' },
+  { value: 'srplId-desc', label: 'SRPL ID (Z-A)' },
 ];
 
 const filterOptions: FilterOption[] = [
@@ -61,6 +63,11 @@ const filterOptions: FilterOption[] = [
       { value: 'IndiaMART', label: 'IndiaMART' },
       { value: 'Other', label: 'Other' },
     ],
+  },
+  {
+    key: 'srplId',
+    label: 'SRPL ID',
+    type: 'text',
   },
   {
     key: 'country',
@@ -130,7 +137,7 @@ export function LeadsTable() {
   const filteredAndSortedLeads = useMemo(() => {
     let result = [...allLeads];
 
-    // Apply search
+    // Apply search (also include SRPL ID)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -140,7 +147,8 @@ export function LeadsTable() {
           lead.email?.toLowerCase().includes(query) ||
           lead.phone?.toLowerCase().includes(query) ||
           lead.productInterest?.toLowerCase().includes(query) ||
-          lead.country?.toLowerCase().includes(query)
+          lead.country?.toLowerCase().includes(query) ||
+          lead.srplId?.toLowerCase().includes(query)
       );
     }
 
@@ -263,6 +271,7 @@ export function LeadsTable() {
               <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[140px]">SRPL ID</TableHead>
                     <TableHead className="w-[200px]">Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Product Interest</TableHead>
@@ -279,6 +288,11 @@ export function LeadsTable() {
                       className="cursor-pointer group animate-fade-in"
                       onClick={() => router.push(`/sales/leads/add?leadId=${lead.id}`)}
                     >
+                      <TableCell>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {lead.srplId || '—'}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -392,7 +406,7 @@ export function LeadsTable() {
                         {lead.country && (
                           <div className="flex items-center gap-2 text-sm">
                             <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{[lead.city, lead.state, lead.country].filter(Boolean).join(', ') || lead.country}</span>
+                            <span>{[ (lead as any).city, lead.state, lead.country].filter(Boolean).join(', ') || lead.country}</span>
                           </div>
                         )}
                       </TableCell>

@@ -135,6 +135,7 @@ export async function GET(req: Request) {
       const queryOptions: any = {
         select: {
           id: true,
+          srplId: true,
           companyName: true,
           customerType: true,
           contactName: true,
@@ -147,7 +148,6 @@ export async function GET(req: Request) {
           state: true,
           city: true,
           gstNo: true,
-          currency: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -183,6 +183,7 @@ export async function GET(req: Request) {
         customers = await prisma.customer.findMany({
           select: {
             id: true,
+            srplId: true,
             companyName: true,
             customerType: true,
             contactName: true,
@@ -195,7 +196,6 @@ export async function GET(req: Request) {
             state: true,
             city: true,
             gstNo: true,
-            currency: true,
             createdAt: true,
           },
           orderBy: { createdAt: 'desc' },

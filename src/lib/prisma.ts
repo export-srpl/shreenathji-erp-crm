@@ -15,6 +15,16 @@ export async function getPrismaClient() {
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
 
+    // Wire up SRPL auto-numbering middleware so creates get srplId automatically
+    try {
+      const { setupSRPLIdMiddleware } = await import('./prisma-middleware');
+      setupSRPLIdMiddleware(prismaSingleton);
+      console.log('SRPL ID middleware initialized on Prisma client');
+    } catch (error) {
+      console.error('Failed to initialize SRPL ID middleware:', error);
+      // Do not fail Prisma initialization if middleware wiring has an issue
+    }
+
     // Initialize sequence counters on first connection
     try {
       const { initializeSequenceCounters } = await import('./srpl-id-generator');

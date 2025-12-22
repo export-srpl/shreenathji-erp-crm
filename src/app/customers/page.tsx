@@ -93,6 +93,7 @@ export default function CustomersPage() {
         // Normalise API shape (flat fields) into the Customer type used by the UI.
         const normalised: Customer[] = (data as any[]).map((c) => ({
           id: c.id,
+          srplId: (c as any).srplId ?? undefined,
           leadId: c.leadId ?? undefined,
           customerType: (c.customerType as Customer['customerType']) ?? 'domestic',
           companyName: c.companyName ?? '',
@@ -100,8 +101,7 @@ export default function CustomersPage() {
           shippingAddress: c.shippingAddress ?? '',
           country: c.country ?? '',
           state: c.state ?? undefined,
-          city: (c as any).city ?? undefined,
-          cityState: c.cityState ?? undefined,
+          cityState: (c as any).city ?? c.cityState ?? undefined,
           gstNo: c.gstNo ?? undefined,
           contactPerson: {
             name: c.contactName ?? '',
@@ -131,20 +131,22 @@ export default function CustomersPage() {
   const filteredAndSortedCustomers = useMemo(() => {
     let result = [...allCustomers];
 
-    // Apply search
+    // Apply search (also include SRPL ID)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (customer) =>
+      result = result.filter((customer) => {
+        return (
           customer.companyName?.toLowerCase().includes(query) ||
           customer.contactPerson?.name?.toLowerCase().includes(query) ||
           customer.contactPerson?.email?.toLowerCase().includes(query) ||
           customer.contactPerson?.phone?.toLowerCase().includes(query) ||
           customer.country?.toLowerCase().includes(query) ||
           customer.state?.toLowerCase().includes(query) ||
-          customer.city?.toLowerCase().includes(query) ||
-          customer.gstNo?.toLowerCase().includes(query)
-      );
+          customer.cityState?.toLowerCase().includes(query) ||
+          customer.gstNo?.toLowerCase().includes(query) ||
+          customer.srplId?.toLowerCase().includes(query)
+        );
+      });
     }
 
     // Apply filters
@@ -337,6 +339,7 @@ export default function CustomersPage() {
               <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[140px]">SRPL ID</TableHead>
                     <TableHead>Company Name</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Contact Person</TableHead>
@@ -346,70 +349,75 @@ export default function CustomersPage() {
                 </TableHeader>
                 <TableBody>
                   {pagedCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">
-                      <a 
-                        href={`/customers/${customer.id}`}
-                        className="text-primary hover:underline"
-                      >
-                        {customer.companyName}
-                      </a>
-                    </TableCell>
-                  <TableCell>
-                    {customer.customerType === 'domestic'
-                      ? customer.state || customer.country
-                      : customer.cityState || customer.country}
-                  </TableCell>
-                  <TableCell>{customer.contactPerson?.name || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-2">
-                        {customer.contactPerson?.email && (
-                          <a
-                            href={`mailto:${customer.contactPerson.email}`}
-                            className="flex items-center gap-2 text-sm hover:underline"
-                          >
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span>{customer.contactPerson.email}</span>
-                          </a>
-                        )}
-                        {customer.contactPerson?.phone && (
-                          <a
-                            href={`https://wa.me/${customer.contactPerson.phone}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-sm hover:underline"
-                          >
-                            <WhatsAppIcon />
-                            <span>{customer.contactPerson.phone}</span>
-                          </a>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/customers/add?customerId=${customer.id}`)}
-                          >
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteCustomer(customer.id)}
-                            className="text-red-600"
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    <TableRow key={customer.id}>
+                      <TableCell>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {customer.srplId || '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <a 
+                          href={`/customers/${customer.id}`}
+                          className="text-primary hover:underline"
+                        >
+                          {customer.companyName}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        {customer.customerType === 'domestic'
+                          ? customer.state || customer.country
+                          : customer.cityState || customer.country}
+                      </TableCell>
+                      <TableCell>{customer.contactPerson?.name || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-2">
+                          {customer.contactPerson?.email && (
+                            <a
+                              href={`mailto:${customer.contactPerson.email}`}
+                              className="flex items-center gap-2 text-sm hover:underline"
+                            >
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>{customer.contactPerson.email}</span>
+                            </a>
+                          )}
+                          {customer.contactPerson?.phone && (
+                            <a
+                              href={`https://wa.me/${customer.contactPerson.phone}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm hover:underline"
+                            >
+                              <WhatsAppIcon />
+                              <span>{customer.contactPerson.phone}</span>
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/customers/add?customerId=${customer.id}`)}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteCustomer(customer.id)}
+                              className="text-red-600"
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

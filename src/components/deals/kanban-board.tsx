@@ -28,6 +28,7 @@ const stages: DealStage[] = [
 
 type Deal = {
   id: string;
+  srplId?: string | null;
   title: string;
   stage: string;
   customer: {
@@ -62,9 +63,16 @@ const DealCard = ({
     <Card className="mb-4 bg-card hover:shadow-md transition-shadow duration-200">
       <CardContent className="p-4 space-y-3">
         <div className="flex justify-between items-start">
-          <p className="font-semibold text-card-foreground leading-tight pr-2">
-            {deal.title}
-          </p>
+          <div className="pr-2">
+            <p className="font-semibold text-card-foreground leading-tight">
+              {deal.title}
+            </p>
+            {deal.srplId && (
+              <p className="text-[11px] font-mono text-muted-foreground mt-1">
+                {deal.srplId}
+              </p>
+            )}
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-6 w-6 -mt-1 -mr-1">

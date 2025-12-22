@@ -158,9 +158,12 @@ PATCH /api/srpl/config
 - ✅ Configuration management
 - ✅ Migration script for existing records
 - ✅ Example implementation in Leads API
-- ⚠️ **TODO**: Update remaining API routes (Customers, Products, Quotes, etc.)
-- ⚠️ **TODO**: Update frontend to display SRPL IDs
-- ⚠️ **TODO**: Add SRPL ID to search/filter functionality
+- ✅ SRPL ID middleware wired into Prisma client (auto-numbering on create/createMany)
+- ✅ API routes returning SRPL IDs for key modules (Leads, Customers, Products, Deals, Quotes, Sales Orders, Proforma Invoices, Invoices)
+- ✅ Frontend list views show SRPL IDs for Leads, Customers, Deals, Quotes, Sales Orders, Proforma Invoices, and Invoices
+- ✅ Global search and list-level search support querying by SRPL ID
+- ⚠️ **TODO**: Run SRPL ID backfill migration for existing production data (if not already done)
+- ⚠️ **TODO**: Extend SRPL ID display to any remaining secondary views or exports (edge cases)
 
 ## Next Steps
 

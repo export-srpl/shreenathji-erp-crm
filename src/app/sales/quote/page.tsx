@@ -22,6 +22,7 @@ const PAGE_SIZE = 10;
 
 type Quote = {
   id: string;
+  srplId?: string | null;
   quoteNumber: string;
   status: string;
   issueDate: string;
@@ -149,6 +150,7 @@ export default function QuotePage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[140px]">SRPL ID</TableHead>
                             <TableHead>Quote #</TableHead>
                             <TableHead>Customer</TableHead>
                             <TableHead>Date</TableHead>
@@ -160,6 +162,11 @@ export default function QuotePage() {
                     <TableBody>
                         {paginatedQuotes.map((quote) => (
                             <TableRow key={quote.id} onClick={() => handleRowClick(quote.id)} className="cursor-pointer">
+                                <TableCell>
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {(quote as any).srplId || '—'}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="font-medium">{quote.quoteNumber}</TableCell>
                                 <TableCell>{quote.customer?.companyName || 'N/A'}</TableCell>
                                 <TableCell>{new Date(quote.issueDate).toLocaleDateString()}</TableCell>
