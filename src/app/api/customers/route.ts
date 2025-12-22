@@ -101,22 +101,22 @@ export async function GET(req: Request) {
       }
     }
 
-    console.log('Fetching customers with filter:', JSON.stringify(cleanFilter));
-    console.log('User role:', auth.role);
-    console.log('User salesScope:', auth.salesScope);
+    console.log('Customers GET - fetching customers with filter:', JSON.stringify(cleanFilter));
+    console.log('Customers GET - user role:', auth.role);
+    console.log('Customers GET - user salesScope:', auth.salesScope);
     
-    // Build where clause - ensure it's valid
-    const whereClause = Object.keys(cleanFilter).length > 0 ? cleanFilter : undefined;
+    // Build where clause - use empty object instead of undefined for Prisma
+    const whereClause = Object.keys(cleanFilter).length > 0 ? cleanFilter : {};
     
     let customers;
     try {
       // First, try a simple query to test database connection
       try {
         const testQuery = await prisma.customer.count();
-        console.log(`Database connection OK. Total customers in DB: ${testQuery}`);
+        console.log(`Customers GET - database connection OK. Total customers in DB: ${testQuery}`);
       } catch (testError: any) {
-        console.error('Database connection test failed:', testError);
-        console.error('Test error details:', {
+        console.error('Customers GET - database connection test failed:', testError);
+        console.error('Customers GET - test error details:', {
           name: testError.name,
           code: testError.code,
           message: testError.message
@@ -131,9 +131,8 @@ export async function GET(req: Request) {
         );
       }
       
-      // Now run the actual query
-      customers = await prisma.customer.findMany({
-        where: whereClause,
+      // Now run the actual query - only include where if filter has keys
+      const queryOptions: any = {
         select: {
           id: true,
           companyName: true,
@@ -152,21 +151,35 @@ export async function GET(req: Request) {
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
-      });
-    } catch (dbError: any) {
-      console.error('Database query error:', dbError);
-      console.error('Database error name:', dbError.name);
-      console.error('Database error code:', dbError.code);
-      console.error('Database error message:', dbError.message);
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Database error stack:', dbError.stack);
+      };
+      
+      // Only add where clause if filter has keys
+      if (Object.keys(whereClause).length > 0) {
+        queryOptions.where = whereClause;
       }
-      console.error('Filter that caused error:', JSON.stringify(cleanFilter));
-      console.error('Where clause:', JSON.stringify(whereClause));
+      
+      console.log('Customers GET - executing query with options:', JSON.stringify({
+        hasWhere: Object.keys(whereClause).length > 0,
+        whereKeys: Object.keys(whereClause),
+        orderBy: queryOptions.orderBy
+      }));
+      
+      customers = await prisma.customer.findMany(queryOptions);
+      console.log(`Customers GET - query succeeded, found ${customers.length} customers`);
+    } catch (dbError: any) {
+      console.error('Customers GET - database query error:', dbError);
+      console.error('Customers GET - database error name:', dbError.name);
+      console.error('Customers GET - database error code:', dbError.code);
+      console.error('Customers GET - database error message:', dbError.message);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Customers GET - database error stack:', dbError.stack);
+      }
+      console.error('Customers GET - filter that caused error:', JSON.stringify(cleanFilter));
+      console.error('Customers GET - where clause:', JSON.stringify(whereClause));
       
       // Try a fallback query without filter
       try {
-        console.log('Attempting fallback query without filter...');
+        console.log('Customers GET - attempting fallback query without filter...');
         customers = await prisma.customer.findMany({
           select: {
             id: true,
@@ -188,13 +201,14 @@ export async function GET(req: Request) {
           orderBy: { createdAt: 'desc' },
           take: 100, // Limit to prevent huge results
         });
-        console.log('Fallback query succeeded, returning limited results');
+        console.log(`Customers GET - fallback query succeeded, returning ${customers.length} limited results`);
       } catch (fallbackError: any) {
-        console.error('Fallback query also failed:', fallbackError);
-        console.error('Fallback error details:', {
+        console.error('Customers GET - fallback query also failed:', fallbackError);
+        console.error('Customers GET - fallback error details:', {
           name: fallbackError.name,
           code: fallbackError.code,
-          message: fallbackError.message
+          message: fallbackError.message,
+          stack: process.env.NODE_ENV === 'development' ? fallbackError.stack : undefined
         });
         return NextResponse.json(
           { 
@@ -210,7 +224,7 @@ export async function GET(req: Request) {
       }
     }
 
-    console.log(`Found ${customers.length} customers`);
+    console.log(`Customers GET - returning ${customers.length} customers`);
     return NextResponse.json(customers);
   } catch (error: any) {
     console.error('Unexpected error fetching customers:', error);

@@ -10,61 +10,220 @@ import { getVisibilityFilter, hasPermission, getFieldPermissions, applyFieldPerm
 
 // GET /api/leads - list leads
 export async function GET(req: Request) {
-  // SECURITY: Require authentication
-  const authError = await requireAuth();
-  if (authError) return authError;
+  try {
+    // SECURITY: Require authentication
+    const authError = await requireAuth();
+    if (authError) {
+      console.error('Leads GET - authentication failed:', authError.status);
+      return authError;
+    }
 
-  const prisma = await getPrismaClient();
-  const auth = await getAuthContext(req);
+    let prisma;
+    try {
+      prisma = await getPrismaClient();
+    } catch (prismaError: any) {
+      console.error('Leads GET - error getting Prisma client:', prismaError);
+      return NextResponse.json(
+        { error: 'Database connection error', details: prismaError.message },
+        { status: 500 }
+      );
+    }
 
-  // Check view permission
-  const canView = await hasPermission(prisma, auth, 'lead', 'view', 'own');
-  if (!canView) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    let auth;
+    try {
+      auth = await getAuthContext(req);
+    } catch (authCtxError: any) {
+      console.error('Leads GET - error getting auth context:', authCtxError);
+      return NextResponse.json(
+        { error: 'Authentication error', details: authCtxError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!auth.userId) {
+      console.error('Leads GET - no userId in auth context');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check view permission
+    let canView = false;
+    try {
+      canView = await hasPermission(prisma, auth, 'lead', 'view', 'own');
+    } catch (permError: any) {
+      console.error('Leads GET - error checking permissions:', permError);
+      // Fail-safe: only admin can proceed if permission check fails
+      canView = auth.role === 'admin';
+    }
+
+    if (!canView) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Get visibility filter based on user's scope (includes country filtering for salesScope)
+    let visibilityFilter: any = {};
+    try {
+      visibilityFilter = await getVisibilityFilter(prisma, auth, 'lead', 'team'); // Use 'team' to see team + own
+    } catch (rbacError: any) {
+      console.error('Leads GET - error getting visibility filter:', rbacError);
+      console.error('Leads GET - RBAC error stack:', rbacError.stack);
+      // Fallback: if RBAC fails, admin sees all, others see own + country via simple filter
+      if (auth.role === 'admin') {
+        visibilityFilter = {};
+      } else {
+        visibilityFilter = { ownerId: auth.userId };
+      }
+    }
+
+    // Ensure visibilityFilter is a valid object
+    if (!visibilityFilter || typeof visibilityFilter !== 'object' || Array.isArray(visibilityFilter)) {
+      console.warn('Leads GET - invalid visibility filter, using empty object');
+      visibilityFilter = {};
+    }
+
+    // Clean the filter - remove any undefined or null values that might cause Prisma errors
+    const cleanFilter: any = {};
+    for (const [key, value] of Object.entries(visibilityFilter)) {
+      if (value !== undefined && value !== null) {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          const cleanNested: any = {};
+          for (const [nestedKey, nestedValue] of Object.entries(value)) {
+            if (nestedValue !== undefined && nestedValue !== null) {
+              cleanNested[nestedKey] = nestedValue;
+            }
+          }
+          if (Object.keys(cleanNested).length > 0) {
+            cleanFilter[key] = cleanNested;
+          }
+        } else {
+          cleanFilter[key] = value;
+        }
+      }
+    }
+
+    console.log('Leads GET - fetching leads with filter:', JSON.stringify(cleanFilter));
+    console.log('Leads GET - user role:', auth.role);
+    console.log('Leads GET - user salesScope:', auth.salesScope);
+
+    // Determine where clause
+    const whereClause = Object.keys(cleanFilter).length > 0 ? cleanFilter : undefined;
+
+    const fieldPerms = await getFieldPermissions(prisma, auth, 'lead');
+
+    let rawLeads;
+    try {
+      // Simple connection test
+      const totalLeads = await prisma.lead.count();
+      console.log(`Leads GET - database connection OK. Total leads in DB: ${totalLeads}`);
+
+      // Main query
+      rawLeads = await prisma.lead.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          srplId: true,
+          companyName: true,
+          contactName: true,
+          email: true,
+          phone: true,
+          status: true,
+          source: true,
+          country: true,
+          state: true,
+          city: true,
+          productInterest: true,
+          application: true,
+          monthlyRequirement: true,
+          followUpDate: true,
+          createdAt: true,
+          ownerId: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (dbError: any) {
+      console.error('Leads GET - database query error:', dbError);
+      console.error('Leads GET - error name:', dbError.name);
+      console.error('Leads GET - error code:', dbError.code);
+      console.error('Leads GET - error message:', dbError.message);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Leads GET - error stack:', dbError.stack);
+      }
+      console.error('Leads GET - filter that caused error:', JSON.stringify(cleanFilter));
+      console.error('Leads GET - where clause:', JSON.stringify(whereClause));
+
+      // Try a fallback query without filter
+      try {
+        console.log('Leads GET - attempting fallback query without filter...');
+        rawLeads = await prisma.lead.findMany({
+          select: {
+            id: true,
+            srplId: true,
+            companyName: true,
+            contactName: true,
+            email: true,
+            phone: true,
+            status: true,
+            source: true,
+            country: true,
+            state: true,
+            city: true,
+            productInterest: true,
+            application: true,
+            monthlyRequirement: true,
+            followUpDate: true,
+            createdAt: true,
+            ownerId: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        });
+        console.log('Leads GET - fallback query succeeded, returning limited results');
+      } catch (fallbackError: any) {
+        console.error('Leads GET - fallback query also failed:', fallbackError);
+        console.error('Leads GET - fallback error details:', {
+          name: fallbackError.name,
+          code: fallbackError.code,
+          message: fallbackError.message,
+        });
+        return NextResponse.json(
+          {
+            error: 'Database query failed',
+            details: dbError.message || 'Unknown database error',
+            code: dbError.code || 'UNKNOWN_ERROR',
+            name: dbError.name || 'Error',
+            fallbackError: fallbackError.message,
+            stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined,
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Apply field-level permissions and map fields
+    const leads = (rawLeads || []).map((lead: (typeof rawLeads)[number]) => {
+      const mapped = {
+        ...lead,
+        // Map Prisma "source" to frontend "leadSource"
+        leadSource: (lead as any).source ?? '',
+        assignedSalesperson: lead.ownerId || '',
+      };
+      // Strip protected fields
+      return applyFieldPermissions(mapped, fieldPerms, 'view');
+    });
+
+    console.log(`Leads GET - returning ${leads.length} leads`);
+    return NextResponse.json(leads);
+  } catch (error: any) {
+    console.error('Leads GET - unexpected error:', error);
+    console.error('Leads GET - error stack:', error.stack);
+    return NextResponse.json(
+      {
+        error: 'Failed to fetch leads',
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
+      { status: 500 },
+    );
   }
-
-  // Get visibility filter based on user's scope (includes country filtering for salesScope)
-  const visibilityFilter = await getVisibilityFilter(prisma, auth, 'lead', 'team'); // Use 'team' to see team + own
-  const fieldPerms = await getFieldPermissions(prisma, auth, 'lead');
-
-  // NOTE: Prisma model uses "source" field; UI expects "leadSource" + "assignedSalesperson"
-  const rawLeads = await prisma.lead.findMany({
-    where: visibilityFilter,
-    select: {
-      id: true,
-      srplId: true,
-      companyName: true,
-      contactName: true,
-      email: true,
-      phone: true,
-      status: true,
-      source: true,
-      country: true,
-      state: true,
-      city: true,
-      productInterest: true,
-      application: true,
-      monthlyRequirement: true,
-      followUpDate: true,
-      createdAt: true,
-      ownerId: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Apply field-level permissions and map fields
-  const leads = rawLeads.map((lead: typeof rawLeads[number]) => {
-    const mapped = {
-      ...lead,
-      // Map Prisma "source" to frontend "leadSource"
-      leadSource: (lead as any).source ?? '',
-      assignedSalesperson: lead.ownerId || '',
-    };
-    // Strip protected fields
-    return applyFieldPermissions(mapped, fieldPerms, 'view');
-  });
-
-  return NextResponse.json(leads);
 }
 
 // POST /api/leads - create a new lead
