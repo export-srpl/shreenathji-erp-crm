@@ -81,8 +81,9 @@ export default function QuotePage() {
         }
     };
 
-    const calculateTotal = (items: Quote['items']) => {
-      return items.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
+    const calculateTotal = (items: Quote['items'] | undefined | null) => {
+      const safeItems = items ?? [];
+      return safeItems.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
     };
 
     const handleRowClick = (quoteId: string) => {

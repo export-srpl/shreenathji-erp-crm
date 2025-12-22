@@ -81,8 +81,9 @@ export default function InvoicesPage() {
     }
   };
 
-  const calculateTotal = (items: Invoice['items']) => {
-    return items.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
+  const calculateTotal = (items: Invoice['items'] | undefined | null) => {
+    const safeItems = items ?? [];
+    return safeItems.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
   };
 
   const handleRowClick = (invoiceId: string) => {

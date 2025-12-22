@@ -4,7 +4,7 @@ import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { logActivity } from '@/lib/activity-logger';
 
-// GET /api/invoices - list invoices with customer
+// GET /api/invoices - list invoices with customer and items
 export async function GET() {
   // SECURITY: Require authentication
   const authError = await requireAuth();
@@ -12,7 +12,7 @@ export async function GET() {
 
   const prisma = await getPrismaClient();
   const invoices = await prisma.invoice.findMany({
-    include: { customer: true },
+    include: { customer: true, items: true },
     orderBy: { createdAt: 'desc' },
   });
 

@@ -81,8 +81,9 @@ export default function SalesOrderPage() {
     }
   };
 
-  const calculateTotal = (items: SalesOrder['items']) => {
-    return items.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
+  const calculateTotal = (items: SalesOrder['items'] | undefined | null) => {
+    const safeItems = items ?? [];
+    return safeItems.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
   };
 
   const handleRowClick = (soId: string) => {

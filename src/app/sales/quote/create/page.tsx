@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 type Lead = {
@@ -30,11 +30,17 @@ type Lead = {
 
 export default function CreateQuotePage() {
   const { toast } = useToast();
+  const [mode, setMode] = useState<'standalone' | 'fromLead'>('standalone');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Only fetch leads if user chooses "From Qualified Lead" mode
+    if (mode !== 'fromLead') {
+      return;
+    }
+
     const fetchLeads = async () => {
       setIsLoading(true);
       try {
@@ -60,7 +66,7 @@ export default function CreateQuotePage() {
     };
 
     fetchLeads();
-  }, [toast]);
+  }, [mode, toast]);
 
   const selectedLead = useMemo(() => {
     return leads?.find(lead => lead.id === selectedLeadId) || null;
@@ -94,47 +100,82 @@ export default function CreateQuotePage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Create Quote</h1>
-          <p className="text-muted-foreground">Select a qualified lead to generate a sales quotation.</p>
+          <p className="text-muted-foreground">
+            Create a quote standalone, or optionally start from a qualified / converted lead.
+          </p>
         </div>
       </div>
       
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Select Lead</CardTitle>
-          <CardDescription>You can only generate quotes for leads that are 'Qualified' or 'Converted'.</CardDescription>
+          <CardTitle>Quote Source</CardTitle>
+          <CardDescription>Choose whether to create a new quote directly or from an existing lead.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <div className="max-w-md">
-              <Label htmlFor="lead-select">Qualified Lead</Label>
-              <Select onValueChange={setSelectedLeadId} value={selectedLeadId || ''}>
-                <SelectTrigger id="lead-select">
-                  <SelectValue placeholder="Select a lead to begin..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {leads && leads.length > 0 ? (
-                    leads.map(lead => (
-                      <SelectItem key={lead.id} value={lead.id}>
-                        {lead.companyName}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="p-2 text-center text-sm text-muted-foreground">No qualified leads found.</div>
-                  )}
-                </SelectContent>
-              </Select>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={mode === 'standalone' ? 'default' : 'outline'}
+              onClick={() => {
+                setMode('standalone');
+                setSelectedLeadId(null);
+              }}
+            >
+              Standalone Quote
+            </Button>
+            <Button
+              type="button"
+              variant={mode === 'fromLead' ? 'default' : 'outline'}
+              onClick={() => setMode('fromLead')}
+            >
+              From Qualified Lead
+            </Button>
+          </div>
+
+          {mode === 'fromLead' && (
+            <div className="max-w-md mt-4">
+              <Label htmlFor="lead-select">Qualified or Converted Lead</Label>
+              {isLoading ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading leads...</span>
+                </div>
+              ) : (
+                <Select onValueChange={setSelectedLeadId} value={selectedLeadId || ''}>
+                  <SelectTrigger id="lead-select">
+                    <SelectValue placeholder="Select a lead (optional)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leads && leads.length > 0 ? (
+                      leads.map(lead => (
+                        <SelectItem key={lead.id} value={lead.id}>
+                          {lead.companyName}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-center text-sm text-muted-foreground">
+                        No qualified or converted leads found.
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
       
-      {selectedLeadId && customerFromLead && (
-         <SalesDocumentForm 
-            documentType="Quote" 
-            existingCustomer={customerFromLead} 
-          />
+      {/* Standalone quote flow */}
+      {mode === 'standalone' && (
+        <SalesDocumentForm documentType="Quote" />
+      )}
+
+      {/* Lead-based quote flow (optional) */}
+      {mode === 'fromLead' && selectedLeadId && customerFromLead && (
+        <SalesDocumentForm 
+          documentType="Quote" 
+          existingCustomer={customerFromLead} 
+        />
       )}
     </div>
   );

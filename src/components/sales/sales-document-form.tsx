@@ -178,7 +178,7 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
   
   const isEditMode = !!existingDocument;
 
-  const isCustomerSelectionDisabled = isReadOnly || documentType === 'Quote';
+  const isCustomerSelectionDisabled = isReadOnly;
 
   const isDomestic = billTo.country === 'India';
 
@@ -392,14 +392,27 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
   }, [lineItems]);
   
   const taxInfo = useMemo(() => {
-    if (!isDomestic || documentType === 'Proforma Invoice') {
-        return { showGst: false, sgst: 0, cgst: 0, igst: 0, totalTax: 0 };
+    // International / non-India customers: no GST
+    if (!isDomestic) {
+      return { showGst: false, sgst: 0, cgst: 0, igst: 0, totalTax: 0 };
     }
+
+    // If state is not set yet, don't apply tax until address is complete
+    if (!billTo.state) {
+      return { showGst: false, sgst: 0, cgst: 0, igst: 0, totalTax: 0 };
+    }
+
+    // Domestic – India: Gujarat = CGST+SGST, other states = IGST
     if (billTo.state === 'Gujarat') {
-        return { showGst: true, sgst: subTotal * 0.09, cgst: subTotal * 0.09, igst: 0, totalTax: subTotal * 0.18 };
+      const sgst = subTotal * 0.09;
+      const cgst = subTotal * 0.09;
+      const totalTax = sgst + cgst;
+      return { showGst: true, sgst, cgst, igst: 0, totalTax };
     }
-    return { showGst: true, sgst: 0, cgst: 0, igst: subTotal * 0.18, totalTax: subTotal * 0.18 };
-  }, [isDomestic, subTotal, billTo.state, documentType]);
+
+    const igst = subTotal * 0.18;
+    return { showGst: true, sgst: 0, cgst: 0, igst, totalTax: igst };
+  }, [isDomestic, subTotal, billTo.state]);
 
   const totalAmount = subTotal + taxInfo.totalTax;
 
@@ -432,6 +445,10 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       if (!isEditMode) {
         payload.quoteNumber = `Q-${Date.now()}`;
       }
+      // If this quote originated from a lead, optionally attach leadId
+      if (existingCustomer && (existingCustomer as any).leadId) {
+        payload.leadId = (existingCustomer as any).leadId;
+      }
     } else if (documentType === 'Proforma Invoice') {
       payload.issueDate = new Date().toISOString();
       if (!isEditMode) {
@@ -440,6 +457,9 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       // If creating from quote, add quoteId
       if ((existingDocument as any)?.quoteId) {
         payload.quoteId = (existingDocument as any).quoteId;
+      } else if ((existingDocument as any)?.quoteNumber && (existingDocument as any)?.id) {
+        // When converting directly from a Quote entity
+        payload.quoteId = (existingDocument as any).id;
       }
     } else if (documentType === 'Sales Order') {
       payload.orderDate = new Date().toISOString();

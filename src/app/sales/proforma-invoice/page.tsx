@@ -81,8 +81,9 @@ export default function ProformaInvoicePage() {
     }
   };
 
-  const calculateTotal = (items: ProformaInvoice['items']) => {
-    return items.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
+  const calculateTotal = (items: ProformaInvoice['items'] | undefined | null) => {
+    const safeItems = items ?? [];
+    return safeItems.reduce((sum, item) => sum + (item.quantity * Number(item.unitPrice)), 0);
   };
 
   const handleRowClick = (proformaId: string) => {

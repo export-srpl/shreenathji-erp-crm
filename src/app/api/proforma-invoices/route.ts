@@ -3,11 +3,11 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { logActivity } from '@/lib/activity-logger';
 
-// GET /api/proforma-invoices - list proforma invoices with customer
+// GET /api/proforma-invoices - list proforma invoices with customer and items
 export async function GET() {
   const prisma = await getPrismaClient();
   const proformas = await prisma.proformaInvoice.findMany({
-    include: { customer: true },
+  include: { customer: true, items: true },
     orderBy: { createdAt: 'desc' },
   });
 
