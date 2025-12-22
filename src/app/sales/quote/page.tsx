@@ -99,14 +99,36 @@ export default function QuotePage() {
         router.push(`/sales/quote/edit/${quoteId}`);
     };
 
-    const handleDownload = (e: React.MouseEvent, quoteId: string) => {
-        handleActionClick(e, () => {
-            console.log(`Requesting PDF download for quote ${quoteId} from backend.`);
-            toast({
-              title: 'PDF Download Requested',
-              description: `This feature requires a backend implementation to generate the PDF.`,
-              variant: 'destructive'
-            });
+    const handleDownload = async (e: React.MouseEvent, quoteId: string) => {
+        handleActionClick(e, async () => {
+            try {
+                const res = await fetch(`/api/quotes/${quoteId}/pdf`);
+                if (!res.ok) {
+                    throw new Error('Failed to generate PDF');
+                }
+                
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `quote-${quoteId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                toast({
+                    title: 'PDF Downloaded',
+                    description: 'Quote PDF has been downloaded successfully.',
+                });
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                toast({
+                    variant: 'destructive',
+                    title: 'PDF Generation Failed',
+                    description: 'Could not generate PDF. Please try again.',
+                });
+            }
         });
     };
     

@@ -53,13 +53,40 @@ export default function ViewSalesOrderPage() {
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleCreateInvoice = (soId: string) => {
-    // This is a placeholder for a secure backend call.
-    toast({
-      title: 'Starting Invoice Creation',
-      description: `Preparing invoice from Sales Order #${soId}.`,
-    });
-    router.push(`/sales/create-invoice/create?fromSalesOrder=${soId}`);
+  const handleCreateInvoice = async (soId: string) => {
+    setIsProcessing(true);
+    
+    try {
+      const res = await fetch(`/api/documents/${soId}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: 'INVOICE' }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: 'Conversion failed' }));
+        throw new Error(error.message || error.errorCode || 'Conversion failed');
+      }
+
+      const result = await res.json();
+      
+      toast({
+        title: 'Conversion Successful',
+        description: 'Invoice has been created successfully.',
+      });
+
+      // Navigate to the newly created invoice
+      router.push(`/sales/create-invoice/${result.documentId}`);
+    } catch (error: any) {
+      console.error('Conversion error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Conversion Failed',
+        description: error.message || 'Could not convert document. Please try again.',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleEdit = (soId: string) => {
@@ -69,22 +96,46 @@ export default function ViewSalesOrderPage() {
   const handlePdfAction = async (soId: string, action: 'download' | 'view') => {
     if (!documentData) return;
     setIsProcessing(true);
-    toast({
-      title: 'Generating PDF',
-      description: `Your sales order PDF is being prepared by the backend.`,
-    });
     
-    // This is a placeholder for a secure backend call.
-    console.log(`Calling backend to generate PDF for sales order ${soId} with action ${action}`);
-    
-    setTimeout(() => {
+    try {
+      const res = await fetch(`/api/sales-orders/${soId}/pdf`);
+      if (!res.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      if (action === 'download') {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sales-order-${documentData.orderNumber || soId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast({
+          title: 'PDF Downloaded',
+          description: 'Sales order PDF has been downloaded successfully.',
+        });
+      } else {
+        window.open(url, '_blank');
+        toast({
+          title: 'PDF Opened',
+          description: 'Sales order PDF has been opened in a new tab.',
+        });
+      }
+      
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF generation error:', error);
       toast({
         variant: 'destructive',
         title: 'PDF Generation Failed',
-        description: 'This feature requires a backend implementation.',
+        description: 'Could not generate PDF. Please try again.',
       });
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
   if (isLoading) {

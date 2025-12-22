@@ -51,17 +51,48 @@ export default function ViewProformaInvoicePage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleConversion = (proformaId: string, targetType: 'Invoice' | 'Sales Order') => {
-    // This is a placeholder for a secure backend call.
-    toast({
-      title: 'Starting Conversion',
-      description: `Preparing a new ${targetType} from Proforma #${proformaId}.`,
-    });
+  const handleConversion = async (proformaId: string, targetType: 'Invoice' | 'Sales Order') => {
+    setIsProcessing(true);
+    
+    try {
+      const targetTypeMap: Record<string, 'INVOICE' | 'SALES_ORDER'> = {
+        'Invoice': 'INVOICE',
+        'Sales Order': 'SALES_ORDER',
+      };
 
-    if (targetType === 'Invoice') {
-      router.push(`/sales/create-invoice/create?fromProforma=${proformaId}`);
-    } else {
-      router.push(`/sales/sales-order/create?fromProforma=${proformaId}`);
+      const res = await fetch(`/api/documents/${proformaId}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: targetTypeMap[targetType] }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: 'Conversion failed' }));
+        throw new Error(error.message || error.errorCode || 'Conversion failed');
+      }
+
+      const result = await res.json();
+      
+      toast({
+        title: 'Conversion Successful',
+        description: `${targetType} has been created successfully.`,
+      });
+
+      // Navigate to the newly created document
+      if (targetType === 'Invoice') {
+        router.push(`/sales/create-invoice/${result.documentId}`);
+      } else {
+        router.push(`/sales/sales-order/${result.documentId}`);
+      }
+    } catch (error: any) {
+      console.error('Conversion error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Conversion Failed',
+        description: error.message || 'Could not convert document. Please try again.',
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 

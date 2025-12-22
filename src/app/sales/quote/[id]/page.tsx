@@ -52,17 +52,48 @@ export default function ViewQuotePage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleConversion = (quoteId: string, targetType: 'Proforma Invoice' | 'Sales Order') => {
-    // This is a placeholder for a secure backend call.
-    toast({
-      title: 'Starting Conversion',
-      description: `Preparing a new ${targetType} from Quote #${quoteId}.`,
-    });
+  const handleConversion = async (quoteId: string, targetType: 'Proforma Invoice' | 'Sales Order') => {
+    setIsProcessing(true);
     
-    if (targetType === 'Proforma Invoice') {
-      router.push(`/sales/proforma-invoice/create?fromQuote=${quoteId}`);
-    } else {
-      router.push(`/sales/sales-order/create?fromQuote=${quoteId}`);
+    try {
+      const targetTypeMap: Record<string, 'PROFORMA' | 'SALES_ORDER'> = {
+        'Proforma Invoice': 'PROFORMA',
+        'Sales Order': 'SALES_ORDER',
+      };
+
+      const res = await fetch(`/api/documents/${quoteId}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: targetTypeMap[targetType] }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: 'Conversion failed' }));
+        throw new Error(error.message || error.errorCode || 'Conversion failed');
+      }
+
+      const result = await res.json();
+      
+      toast({
+        title: 'Conversion Successful',
+        description: `${targetType} has been created successfully.`,
+      });
+
+      // Navigate to the newly created document
+      if (targetType === 'Proforma Invoice') {
+        router.push(`/sales/proforma-invoice/${result.documentId}`);
+      } else {
+        router.push(`/sales/sales-order/${result.documentId}`);
+      }
+    } catch (error: any) {
+      console.error('Conversion error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Conversion Failed',
+        description: error.message || 'Could not convert document. Please try again.',
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
