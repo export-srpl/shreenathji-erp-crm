@@ -142,8 +142,25 @@ export async function PATCH(req: Request, { params }: Params) {
     const sanitizedBody = applyFieldPermissions(body, fieldPerms, 'edit');
 
     // Validate and sanitize incoming data (all fields optional on update)
+    // Pre-process followUpDate to handle various formats
+    if (sanitizedBody.followUpDate !== undefined && sanitizedBody.followUpDate !== null) {
+      if (typeof sanitizedBody.followUpDate === 'string') {
+        // Try to parse as date
+        const parsed = new Date(sanitizedBody.followUpDate);
+        if (!isNaN(parsed.getTime())) {
+          sanitizedBody.followUpDate = parsed.toISOString();
+        }
+      } else if (sanitizedBody.followUpDate instanceof Date) {
+        sanitizedBody.followUpDate = sanitizedBody.followUpDate.toISOString();
+      }
+    }
+
     const validation = validateInput(leadUpdateSchema, sanitizedBody);
     if (!validation.success) {
+      console.error('Lead update validation failed:', {
+        errors: validation.error.errors,
+        body: sanitizedBody,
+      });
       return NextResponse.json(
         {
           error: 'Validation failed',
@@ -161,7 +178,21 @@ export async function PATCH(req: Request, { params }: Params) {
 
     if (data.status !== undefined) updateData.status = data.status;
     if (data.followUpDate !== undefined) {
-      updateData.followUpDate = data.followUpDate ? new Date(data.followUpDate) : null;
+      if (data.followUpDate === null || data.followUpDate === '') {
+        updateData.followUpDate = null;
+      } else {
+        try {
+          updateData.followUpDate = new Date(data.followUpDate);
+          // Validate the date
+          if (isNaN(updateData.followUpDate.getTime())) {
+            console.warn('Invalid followUpDate provided, setting to null:', data.followUpDate);
+            updateData.followUpDate = null;
+          }
+        } catch (e) {
+          console.warn('Error parsing followUpDate, setting to null:', e);
+          updateData.followUpDate = null;
+        }
+      }
     }
     if (data.productInterest !== undefined) updateData.productInterest = data.productInterest;
     if (data.application !== undefined) updateData.application = data.application;

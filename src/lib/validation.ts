@@ -59,7 +59,12 @@ export const leadSchema = z.object({
   productInterest: z.string().max(200).trim().optional().nullable(),
   application: z.string().max(200).trim().optional().nullable(),
   monthlyRequirement: z.string().max(100).trim().optional().nullable(),
-  followUpDate: z.string().datetime().optional().nullable(),
+  followUpDate: z.union([
+    z.string().datetime(),
+    z.string(),
+    z.date(),
+    z.null(),
+  ]).optional().nullable(),
   notes: z.string().max(2000).trim().optional().nullable(),
 });
 

@@ -88,8 +88,9 @@ export async function GET(req: Request, { params }: Params) {
       poDate: order.poDate || undefined,
       salesPerson: order.salesRep
         ? {
-            name: order.salesRep.name || order.salesRep.email || '',
+            name: order.salesRep.name || order.salesRep.email || 'Sales Person',
             email: order.salesRep.email || undefined,
+            phone: undefined, // Phone not available from salesRep relation
           }
         : undefined,
       customer: {

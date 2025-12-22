@@ -88,8 +88,9 @@ export async function GET(req: Request, { params }: Params) {
       poDate: invoice.poDate || undefined,
       salesPerson: invoice.salesOrder?.salesRep
         ? {
-            name: invoice.salesOrder.salesRep.name || invoice.salesOrder.salesRep.email || '',
+            name: invoice.salesOrder.salesRep.name || invoice.salesOrder.salesRep.email || 'Sales Person',
             email: invoice.salesOrder.salesRep.email || undefined,
+            phone: undefined, // Phone not available from salesRep relation
           }
         : undefined,
       customer: {
@@ -115,6 +116,23 @@ export async function GET(req: Request, { params }: Params) {
       notes: invoice.notes || undefined,
       currency: 'INR',
     };
+
+    // Validate PDF data before generation
+    if (!pdfData.documentNumber || !pdfData.customer?.companyName) {
+      console.error('Invalid PDF data:', { documentNumber: pdfData.documentNumber, hasCompanyName: !!pdfData.customer?.companyName });
+      return NextResponse.json(
+        { error: 'Invalid PDF data', message: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (!pdfData.items || pdfData.items.length === 0) {
+      console.error('No items in PDF data');
+      return NextResponse.json(
+        { error: 'Invalid PDF data', message: 'No line items found' },
+        { status: 400 }
+      );
+    }
 
     const pdfBuffer = await generateDocumentPDF(pdfData);
 
