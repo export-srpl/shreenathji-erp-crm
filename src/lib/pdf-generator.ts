@@ -156,32 +156,16 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
         doc.save();
 
-        // Logo on the left – expects logo file to exist in /public
-        try {
-          // Try both possible logo filenames
-          const logoPath1 = path.join(process.cwd(), 'public', 'shreenathji-logo.png');
-          const logoPath2 = path.join(process.cwd(), 'public', 'logo.png');
-          const logoPath = fs.existsSync(logoPath1) ? logoPath1 : (fs.existsSync(logoPath2) ? logoPath2 : null);
-          if (logoPath) {
-            console.log('[PDF] Loading logo from:', logoPath);
-            doc.image(logoPath, margin, headerTop, { height: 40 });
-          } else {
-            console.log('[PDF] Logo not found, continuing without logo');
-          }
-        } catch (e) {
-          console.error('[PDF] PDF header logo error:', e);
-          // Continue without logo if image loading fails
-        }
-
-        // Company info to the right of logo
-        const headerX = margin + 120;
+        // Company name - centered, bold, and large (no logo)
         doc.fillColor(brandColor);
-        doc.font('Helvetica-Bold').fontSize(16);
-        doc.text('SHREENATHJI RASAYAN PRIVATE LIMITED', headerX, headerTop, {
-          width: pageWidth - headerX - margin,
-          align: 'left',
+        doc.font('Helvetica-Bold').fontSize(22);
+        const companyName = 'SHREENATHJI RASAYAN PVT LTD';
+        doc.text(companyName, margin, headerTop, {
+          width: pageWidth - margin * 2,
+          align: 'center',
         });
 
+        // Company details below the name
         doc.font('Helvetica').fontSize(8);
         const headerDetails = [
           'CIN No.: U24110GJ2006PTC049339',
@@ -189,10 +173,11 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
           'Mobile: +91 87358 88479',
           'Email: info@shreenathjirasayan.com',
         ];
-        let detailY = headerTop + 20;
+        let detailY = headerTop + 25;
         headerDetails.forEach((line) => {
-          doc.text(String(line ?? ''), headerX, detailY, {
-            width: pageWidth - headerX - margin,
+          doc.text(String(line ?? ''), margin, detailY, {
+            width: pageWidth - margin * 2,
+            align: 'center',
           });
           detailY = doc.y;
         });
