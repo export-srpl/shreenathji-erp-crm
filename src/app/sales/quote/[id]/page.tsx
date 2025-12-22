@@ -76,14 +76,14 @@ export default function ViewQuotePage() {
       
       toast({
         title: 'Conversion Successful',
-        description: `${targetType} has been created successfully.`,
+        description: `${targetType} ${result.documentNumber} has been created. Review and save to finalize.`,
       });
 
-      // Navigate to the newly created document
+      // Navigate to the edit page of the newly created document for review
       if (targetType === 'Proforma Invoice') {
-        router.push(`/sales/proforma-invoice/${result.documentId}`);
+        router.push(`/sales/proforma-invoice/edit/${result.documentId}`);
       } else {
-        router.push(`/sales/sales-order/${result.documentId}`);
+        router.push(`/sales/sales-order/edit/${result.documentId}`);
       }
     } catch (error: any) {
       console.error('Conversion error:', error);

@@ -72,11 +72,11 @@ export default function ViewSalesOrderPage() {
       
       toast({
         title: 'Conversion Successful',
-        description: 'Invoice has been created successfully.',
+        description: `Invoice ${result.documentNumber} has been created. Review and save to finalize.`,
       });
 
-      // Navigate to the newly created invoice
-      router.push(`/sales/create-invoice/${result.documentId}`);
+      // Navigate to the edit page of the newly created invoice for review
+      router.push(`/sales/create-invoice/edit/${result.documentId}`);
     } catch (error: any) {
       console.error('Conversion error:', error);
       toast({

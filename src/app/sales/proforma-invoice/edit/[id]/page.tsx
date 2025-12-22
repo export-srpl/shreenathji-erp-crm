@@ -58,8 +58,14 @@ export default function EditProformaInvoicePage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Edit Proforma Invoice #{id}</h1>
-          <p className="text-muted-foreground">Update the details for this proforma invoice.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">
+            {documentData?.proformaNumber ? `Edit Proforma Invoice ${documentData.proformaNumber}` : `Edit Proforma Invoice #${id}`}
+          </h1>
+          <p className="text-muted-foreground">
+            {documentData?.quoteId 
+              ? 'Review and update the details for this converted proforma invoice. All data from the source quote has been pre-filled.'
+              : 'Update the details for this proforma invoice.'}
+          </p>
         </div>
       </div>
       {documentData && <SalesDocumentForm documentType="Proforma Invoice" existingDocument={documentData} />}

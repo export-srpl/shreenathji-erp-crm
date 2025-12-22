@@ -3,6 +3,7 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { logActivity } from '@/lib/activity-logger';
+import { generateNextDocumentNumber } from '@/lib/document-number-generator';
 
 type Params = {
   params: { id: string };
@@ -130,7 +131,7 @@ export async function POST(req: Request, { params }: Params) {
 
       if (body.targetType === 'PROFORMA' && sourceType === 'QUOTE') {
         // Quote -> Proforma Invoice
-        const proformaNumber = `PI-${Date.now()}`;
+        const proformaNumber = await generateNextDocumentNumber('PROFORMA');
         newDocument = await tx.proformaInvoice.create({
           data: {
             proformaNumber,
@@ -168,7 +169,7 @@ export async function POST(req: Request, { params }: Params) {
         });
       } else if (body.targetType === 'SALES_ORDER') {
         // Quote/Proforma -> Sales Order
-        const orderNumber = `SO-${Date.now()}`;
+        const orderNumber = await generateNextDocumentNumber('SALES_ORDER');
         // SalesOrder only has quoteId, so use the quoteId from the source (or the source's quoteId if it's a Proforma)
         const quoteId = sourceType === 'QUOTE' ? sourceDoc.id : (sourceDoc.quoteId || null);
         // Get salesRepId from source or from quote if source is Proforma
@@ -215,7 +216,7 @@ export async function POST(req: Request, { params }: Params) {
         });
       } else if (body.targetType === 'INVOICE') {
         // Proforma/Sales Order -> Invoice
-        const invoiceNumber = `INV-${Date.now()}`;
+        const invoiceNumber = await generateNextDocumentNumber('INVOICE');
         const proformaId = sourceType === 'PROFORMA' ? sourceDoc.id : null;
         const salesOrderId = sourceType === 'SALES_ORDER' ? sourceDoc.id : null;
 

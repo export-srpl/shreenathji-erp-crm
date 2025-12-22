@@ -59,8 +59,14 @@ export default function EditSalesOrderPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Edit Sales Order #{id}</h1>
-          <p className="text-muted-foreground">Update the details for this sales order.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">
+            {documentData?.orderNumber ? `Edit Sales Order ${documentData.orderNumber}` : `Edit Sales Order #${id}`}
+          </h1>
+          <p className="text-muted-foreground">
+            {documentData?.quoteId 
+              ? 'Review and update the details for this converted sales order. All data from the source document has been pre-filled.'
+              : 'Update the details for this sales order.'}
+          </p>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
