@@ -81,29 +81,54 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       reject(error);
     };
     let doc: any = null;
+    const chunks: Buffer[] = [];
+    let hasEnded = false;
+
     try {
       doc = new PDFDocument({
         margin: 60,
         size: 'A4',
+        autoFirstPage: true,
       });
-      const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => chunks.push(chunk));
+      // Set up event handlers BEFORE any operations
+      doc.on('data', (chunk: Buffer) => {
+        if (chunk && chunk.length > 0) {
+          chunks.push(chunk);
+        }
+      });
+
       doc.on('end', () => {
+        if (hasEnded) {
+          console.warn('PDF end event fired multiple times');
+          return;
+        }
+        hasEnded = true;
         try {
+          if (chunks.length === 0) {
+            console.error('No chunks collected for PDF');
+            clearTimeoutAndReject(new Error('Generated PDF buffer is empty - no data chunks received'));
+            return;
+          }
           const buffer = Buffer.concat(chunks);
           if (buffer.length === 0) {
+            console.error('Concatenated PDF buffer is empty');
             clearTimeoutAndReject(new Error('Generated PDF buffer is empty'));
             return;
           }
+          console.log(`PDF generated successfully: ${buffer.length} bytes`);
           clearTimeoutAndResolve(buffer);
-        } catch (e) {
+        } catch (e: any) {
+          console.error('Error concatenating PDF chunks:', e);
           clearTimeoutAndReject(e);
         }
       });
+
       doc.on('error', (err: any) => {
         console.error('PDFDocument error event:', err);
-        clearTimeoutAndReject(err);
+        if (!hasEnded) {
+          clearTimeoutAndReject(err);
+        }
       });
 
       const brandColor = '#8b0304';
@@ -145,10 +170,12 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
           'Mobile: +91 87358 88479',
           'Email: info@shreenathjirasayan.com',
         ];
+        let detailY = headerTop + 20;
         headerDetails.forEach((line) => {
-          doc.text(line, headerX, doc.y + 2, {
+          doc.text(line, headerX, detailY, {
             width: pageWidth - headerX - margin,
           });
+          detailY = doc.y;
         });
 
         // Thin divider
@@ -210,10 +237,22 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       doc.font('Helvetica').fontSize(9);
       doc.text(`Document No: ${String(data.documentNumber || 'N/A')}`);
       try {
-        const issueDate = data.issueDate instanceof Date ? data.issueDate : new Date(data.issueDate);
-        doc.text(`Date: ${issueDate.toLocaleDateString('en-IN')}`);
+        let issueDate: Date;
+        if (data.issueDate instanceof Date) {
+          issueDate = data.issueDate;
+        } else if (typeof data.issueDate === 'string') {
+          issueDate = new Date(data.issueDate);
+        } else {
+          issueDate = new Date();
+        }
+        // Validate date
+        if (isNaN(issueDate.getTime())) {
+          issueDate = new Date();
+        }
+        doc.text(`Date: ${issueDate.toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' })}`);
       } catch (e) {
-        doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`);
+        console.error('Error formatting issue date:', e);
+        doc.text(`Date: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' })}`);
       }
 
       if (data.poNumber || data.poDate) {
@@ -221,9 +260,20 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         if (data.poNumber) poParts.push(`PO No: ${String(data.poNumber)}`);
         if (data.poDate) {
           try {
-            const poDate = data.poDate instanceof Date ? data.poDate : new Date(data.poDate);
-            poParts.push(`PO Date: ${poDate.toLocaleDateString('en-IN')}`);
+            let poDate: Date;
+            if (data.poDate instanceof Date) {
+              poDate = data.poDate;
+            } else if (typeof data.poDate === 'string') {
+              poDate = new Date(data.poDate);
+            } else {
+              throw new Error('Invalid PO date type');
+            }
+            // Validate date
+            if (!isNaN(poDate.getTime())) {
+              poParts.push(`PO Date: ${poDate.toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' })}`);
+            }
           } catch (e) {
+            console.error('Error formatting PO date:', e);
             // Skip PO date if invalid
           }
         }
@@ -255,30 +305,42 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
       doc.fontSize(9);
       // From (our company)
-      doc.font('Helvetica-Bold').text('From', margin, blockTop);
+      let fromY = blockTop;
+      doc.font('Helvetica-Bold').text('From', margin, fromY);
       doc.font('Helvetica');
-      doc.text('Shreenathji Rasayan Private Limited', margin, doc.y);
-      doc.text('202, Neptune Harmony, Next to Ashok Vatika BRTS Stop,', margin, doc.y);
-      doc.text('Iscon–Ambali Road, Ahmedabad – 380058, Gujarat, India', margin, doc.y);
-      doc.text('CIN No.: U24110GJ2006PTC049339', margin, doc.y);
+      fromY = doc.y;
+      doc.text('Shreenathji Rasayan Private Limited', margin, fromY);
+      fromY = doc.y;
+      doc.text('202, Neptune Harmony, Next to Ashok Vatika BRTS Stop,', margin, fromY);
+      fromY = doc.y;
+      doc.text('Iscon–Ambali Road, Ahmedabad – 380058, Gujarat, India', margin, fromY);
+      fromY = doc.y;
+      doc.text('CIN No.: U24110GJ2006PTC049339', margin, fromY);
       // GST for our company can be configured via environment
       if (process.env.COMPANY_GSTIN) {
-        doc.text(`GSTIN: ${process.env.COMPANY_GSTIN}`, margin, doc.y);
+        fromY = doc.y;
+        doc.text(`GSTIN: ${process.env.COMPANY_GSTIN}`, margin, fromY);
       }
 
       // To (customer)
       const toX = margin + colWidth + 20;
-      doc.y = blockTop;
-      doc.font('Helvetica-Bold').text('To', toX, blockTop);
+      let toY = blockTop;
+      doc.font('Helvetica-Bold').text('To', toX, toY);
       doc.font('Helvetica');
-      doc.text(data.customer.companyName, toX, doc.y);
+      toY = doc.y;
+      doc.text(data.customer.companyName || 'Customer', toX, toY);
       if (data.customer.billingAddress) {
-        data.customer.billingAddress.split('\n').forEach((line) => {
-          doc.text(line, toX, doc.y);
+        const addressLines = String(data.customer.billingAddress).split('\n');
+        addressLines.forEach((line) => {
+          if (line.trim()) {
+            toY = doc.y;
+            doc.text(line.trim(), toX, toY);
+          }
         });
       }
       if (data.customer.gstNo) {
-        doc.text(`GSTIN: ${data.customer.gstNo}`, toX, doc.y);
+        toY = doc.y;
+        doc.text(`GSTIN: ${data.customer.gstNo}`, toX, toY);
       }
 
       doc.moveDown(2);
@@ -364,13 +426,34 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
       // Notes
       if (data.notes) {
-        doc.text('Notes:', { continued: false });
-        doc.text(data.notes, { indent: 20 });
-        doc.moveDown();
+        try {
+          doc.text('Notes:', { continued: false });
+          // Ensure notes is a string and not too long
+          const notesText = String(data.notes || '').substring(0, 2000);
+          doc.text(notesText, { indent: 20 });
+          doc.moveDown();
+        } catch (e) {
+          console.error('Error rendering notes:', e);
+          // Continue without notes if there's an error
+        }
       }
 
-      // Finalize the PDF
-      doc.end();
+      // Finalize the PDF - ensure we call end() to trigger the 'end' event
+      try {
+        // Ensure all content is flushed before ending
+        if (doc && typeof doc.flush === 'function') {
+          doc.flush();
+        }
+        doc.end();
+        // Note: The 'end' event will be fired asynchronously by pdfkit
+        // We don't need to wait for it here - the event handler will resolve the promise
+      } catch (endError: any) {
+        console.error('Error ending PDF document:', endError);
+        if (!hasEnded) {
+          clearTimeoutAndReject(endError);
+        }
+        return;
+      }
     } catch (error: any) {
       console.error('Error during PDF generation:', {
         error: error?.message || error,
@@ -378,11 +461,12 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         documentType: data.documentType,
         documentNumber: data.documentNumber,
       });
-      // Ensure document is ended if it was created
-      if (doc) {
+      // Ensure document is ended if it was created and hasn't ended yet
+      if (doc && !hasEnded) {
         try {
           doc.end();
         } catch (e) {
+          console.error('Error ending PDF document in catch block:', e);
           // Ignore errors when ending after an error
         }
       }
