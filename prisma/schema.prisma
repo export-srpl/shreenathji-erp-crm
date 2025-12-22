@@ -115,6 +115,7 @@ model Customer {
   srplId           String?           @unique // SRPL-CUST-000001
   companyName      String
   customerType     String
+  isActive         Boolean           @default(true)
   country          String
   state            String?
   city             String?

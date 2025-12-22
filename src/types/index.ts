@@ -68,6 +68,7 @@ export type Product = {
 export type Customer = {
     id: string;
     srplId?: string | null;
+    isActive?: boolean;
     leadId?: string; // Link to the original lead
     customerType: 'domestic' | 'international';
     companyName: string;

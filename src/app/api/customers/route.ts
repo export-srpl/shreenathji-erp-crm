@@ -106,7 +106,14 @@ export async function GET(req: Request) {
     console.log('Customers GET - user salesScope:', auth.salesScope);
     
     // Build where clause - use empty object instead of undefined for Prisma
-    const whereClause = Object.keys(cleanFilter).length > 0 ? cleanFilter : {};
+    // Soft-delete: exclude inactive customers by default unless includeInactive=true
+    const searchParams = new URL(req.url).searchParams;
+    const includeInactive = searchParams.get('includeInactive') === 'true';
+
+    const whereClauseBase = Object.keys(cleanFilter).length > 0 ? cleanFilter : {};
+    const whereClause = includeInactive
+      ? whereClauseBase
+      : { AND: [whereClauseBase, { isActive: { not: false } }] };
     
     let customers;
     try {
@@ -138,6 +145,7 @@ export async function GET(req: Request) {
           srplId: true,
           companyName: true,
           customerType: true,
+          isActive: true,
           contactName: true,
           contactEmail: true,
           contactPhone: true,
@@ -186,6 +194,7 @@ export async function GET(req: Request) {
             srplId: true,
             companyName: true,
             customerType: true,
+            isActive: true,
             contactName: true,
             contactEmail: true,
             contactPhone: true,

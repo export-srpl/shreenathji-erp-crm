@@ -94,6 +94,7 @@ export default function CustomersPage() {
         const normalised: Customer[] = (data as any[]).map((c) => ({
           id: c.id,
           srplId: (c as any).srplId ?? undefined,
+          isActive: (c as any).isActive ?? true,
           leadId: c.leadId ?? undefined,
           customerType: (c.customerType as Customer['customerType']) ?? 'domestic',
           companyName: c.companyName ?? '',
@@ -136,6 +137,7 @@ export default function CustomersPage() {
       const query = searchQuery.toLowerCase();
       result = result.filter((customer) => {
         return (
+          customer.srplId?.toLowerCase().includes(query) ||
           customer.companyName?.toLowerCase().includes(query) ||
           customer.contactPerson?.name?.toLowerCase().includes(query) ||
           customer.contactPerson?.email?.toLowerCase().includes(query) ||
@@ -143,8 +145,7 @@ export default function CustomersPage() {
           customer.country?.toLowerCase().includes(query) ||
           customer.state?.toLowerCase().includes(query) ||
           customer.cityState?.toLowerCase().includes(query) ||
-          customer.gstNo?.toLowerCase().includes(query) ||
-          customer.srplId?.toLowerCase().includes(query)
+          customer.gstNo?.toLowerCase().includes(query)
         );
       });
     }
@@ -220,7 +221,15 @@ export default function CustomersPage() {
       const res = await fetch(`/api/customers/${customerId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete customer');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to delete customer' }));
+        const message =
+          errorData.error === 'Cannot delete customer'
+            ? errorData.details ||
+              'This company has related records (deals, quotes, orders, invoices, or documents). Delete or reassign those first.'
+            : errorData.error || 'Failed to delete customer';
+        throw new Error(message);
+      }
 
       setAllCustomers(prev => prev.filter(c => c.id !== customerId));
       toast({
@@ -229,10 +238,12 @@ export default function CustomersPage() {
       });
     } catch (error) {
       console.error(error);
+      const description =
+        error instanceof Error ? error.message : 'Please try again later.';
       toast({
         variant: 'destructive',
         title: 'Failed to delete company',
-        description: 'Please try again later.',
+        description,
       });
     }
   };

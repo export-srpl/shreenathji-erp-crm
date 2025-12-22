@@ -89,14 +89,38 @@ export async function DELETE(req: Request, { params }: Params) {
 
   try {
     const prisma = await getPrismaClient();
-    await prisma.customer.delete({
+    // Soft delete: set isActive = false instead of hard delete
+    const updated = await prisma.customer.update({
       where: { id },
+      data: { isActive: false },
+      select: { id: true, isActive: true },
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 });
+    return NextResponse.json({ success: true, isActive: updated.isActive });
+  } catch (error: any) {
+    console.error('Failed to delete customer:', error);
+
+    // Handle referential integrity / foreign key constraint errors gracefully
+    if (error.code === 'P2003') {
+      // Prisma referential integrity error
+      return NextResponse.json(
+        {
+          error: 'Cannot delete customer',
+          details:
+            'This company has related records (deals, quotes, sales orders, invoices, or documents). Delete or reassign those records before deleting this customer.',
+          code: 'CUSTOMER_HAS_DEPENDENCIES',
+        },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Failed to delete customer',
+        details: error?.message || 'Unknown error',
+      },
+      { status: 500 },
+    );
   }
 }
 
