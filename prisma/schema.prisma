@@ -218,24 +218,28 @@ model Product {
 }
 
 model Quote {
-  id          String            @id @default(cuid())
-  srplId      String?           @unique // SRPL-QUOT-000001
-  quoteNumber String            @unique
-  status      String            @default("Draft")
-  issueDate   DateTime
-  validUntil  DateTime?
-  notes       String?
-  customerId  String
-  leadId      String?
-  salesRepId  String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  proformas   ProformaInvoice[]
-  customer    Customer          @relation(fields: [customerId], references: [id])
-  lead        Lead?             @relation(fields: [leadId], references: [id])
-  salesRep    User?             @relation("UserQuotes", fields: [salesRepId], references: [id])
-  items       QuoteItem[]
-  salesOrders SalesOrder[]
+  id           String            @id @default(cuid())
+  srplId       String?           @unique // SRPL-QUOT-000001
+  quoteNumber  String            @unique
+  status       String            @default("Draft")
+  issueDate    DateTime
+  validUntil   DateTime?
+  notes        String?
+  customerId   String
+  leadId       String?
+  salesRepId   String?
+  incoTerms    String?           // Inco Terms (e.g., FOB, CIF, CFR, Ex-Factory)
+  paymentTerms String?           // Payment Terms (e.g., Advance, 30 Days, LC)
+  poNumber     String?           // Purchase Order Number
+  poDate       DateTime?         // Purchase Order Date
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  proformas    ProformaInvoice[]
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  lead         Lead?             @relation(fields: [leadId], references: [id])
+  salesRep     User?             @relation("UserQuotes", fields: [salesRepId], references: [id])
+  items        QuoteItem[]
+  salesOrders  SalesOrder[]
 }
 
 model QuoteItem {
@@ -260,6 +264,10 @@ model SalesOrder {
   customerId   String
   quoteId      String?
   salesRepId   String?
+  incoTerms    String?          // Inco Terms (e.g., FOB, CIF, CFR, Ex-Factory)
+  paymentTerms String?          // Payment Terms (e.g., Advance, 30 Days, LC)
+  poNumber     String?          // Purchase Order Number
+  poDate       DateTime?        // Purchase Order Date
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   invoices     Invoice[]
@@ -303,6 +311,10 @@ model ProformaInvoice {
   notes          String?
   customerId     String
   quoteId        String?
+  incoTerms      String?        // Inco Terms (e.g., FOB, CIF, CFR, Ex-Factory)
+  paymentTerms   String?        // Payment Terms (e.g., Advance, 30 Days, LC)
+  poNumber       String?        // Purchase Order Number
+  poDate         DateTime?       // Purchase Order Date
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   invoices       Invoice[]      @relation("ProformaInvoicesOnInvoices")
@@ -332,6 +344,10 @@ model Invoice {
   customerId    String
   proformaId    String?
   salesOrderId  String?
+  incoTerms     String?          // Inco Terms (e.g., FOB, CIF, CFR, Ex-Factory)
+  paymentTerms  String?          // Payment Terms (e.g., Advance, 30 Days, LC)
+  poNumber      String?          // Purchase Order Number
+  poDate        DateTime?        // Purchase Order Date
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   customer      Customer         @relation(fields: [customerId], references: [id])

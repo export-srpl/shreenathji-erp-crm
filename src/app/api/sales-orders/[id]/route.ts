@@ -48,6 +48,22 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.expectedShip !== undefined) {
       updateData.expectedShip = body.expectedShip ? new Date(body.expectedShip) : null;
     }
+    if (body.incoTerms !== undefined) updateData.incoTerms = body.incoTerms;
+    if (body.paymentTerms !== undefined) updateData.paymentTerms = body.paymentTerms;
+    if (body.poNumber !== undefined) updateData.poNumber = body.poNumber;
+    if (body.poDate !== undefined) updateData.poDate = body.poDate ? new Date(body.poDate) : null;
+    if (body.salesRepId !== undefined) updateData.salesRepId = body.salesRepId;
+    if (body.items !== undefined) {
+      updateData.items = {
+        deleteMany: { salesOrderId: params.id },
+        create: body.items.map((item: any) => ({
+          productId: item.productId,
+          quantity: item.quantity ?? item.qty,
+          unitPrice: item.unitPrice ?? item.rate,
+          discountPct: item.discountPct ?? 0,
+        })),
+      };
+    }
 
     const updated = await prisma.salesOrder.update({
       where: { id: params.id },

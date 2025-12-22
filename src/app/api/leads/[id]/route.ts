@@ -20,10 +20,44 @@ export async function GET(req: Request, { params }: Params) {
   const prisma = await getPrismaClient();
   const auth = await getAuthContext(req);
 
-  // Check if user can access this record
-  const canAccess = await canAccessRecord(prisma, auth, 'lead', params.id, 'own');
-  if (!canAccess) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Admin can access all leads
+  // For other users, check if they can view leads (sales users can view leads in their scope)
+  if (auth.role !== 'admin') {
+    // First check if the lead exists
+    const lead = await prisma.lead.findUnique({
+      where: { id: params.id },
+      select: { id: true, ownerId: true, country: true },
+    });
+
+    if (!lead) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Check if user has view permission for leads
+    const canView = await hasPermission(prisma, auth, 'lead', 'view', 'own') || 
+                     await hasPermission(prisma, auth, 'lead', 'view', 'team') ||
+                     await hasPermission(prisma, auth, 'lead', 'view', 'all');
+    
+    // If user has view permission, check country-based access (sales scope)
+    if (canView) {
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId! },
+        select: { salesScope: true },
+      });
+
+      if (user?.salesScope === 'domestic_sales' && lead.country !== 'India') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (user?.salesScope === 'export_sales' && lead.country === 'India') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      // If no salesScope restriction or country matches, allow access
+    } else {
+      // If no explicit permission, allow if user owns the lead or it's unassigned
+      if (lead.ownerId !== auth.userId && lead.ownerId !== null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
   }
 
   const lead = await prisma.lead.findUnique({
@@ -51,16 +85,44 @@ export async function PATCH(req: Request, { params }: Params) {
   const auth = await getAuthContext(req);
   const prisma = await getPrismaClient();
 
-  // Check if user can access this record
-  const canAccess = await canAccessRecord(prisma, auth, 'lead', params.id, 'own');
-  if (!canAccess) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  // Admin can update all leads
+  // For other users, check if they can update leads (sales users can update leads in their scope)
+  if (auth.role !== 'admin') {
+    // First check if the lead exists
+    const existingLead = await prisma.lead.findUnique({
+      where: { id: params.id },
+      select: { id: true, ownerId: true, country: true },
+    });
 
-  // Check update permission
-  const canUpdate = await hasPermission(prisma, auth, 'lead', 'update', 'own');
-  if (!canUpdate) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!existingLead) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Check if user has update permission for leads
+    const canUpdate = await hasPermission(prisma, auth, 'lead', 'update', 'own') || 
+                      await hasPermission(prisma, auth, 'lead', 'update', 'team') ||
+                      await hasPermission(prisma, auth, 'lead', 'update', 'all');
+    
+    // If user has update permission, check country-based access (sales scope)
+    if (canUpdate) {
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId! },
+        select: { salesScope: true },
+      });
+
+      if (user?.salesScope === 'domestic_sales' && existingLead.country !== 'India') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (user?.salesScope === 'export_sales' && existingLead.country === 'India') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      // If no salesScope restriction or country matches, allow update
+    } else {
+      // If no explicit permission, allow if user owns the lead or it's unassigned
+      if (existingLead.ownerId !== auth.userId && existingLead.ownerId !== null) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
   }
 
   const body = await req.json();
@@ -93,7 +155,8 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const data = validation.data as any;
 
-    // Only allow updating specific fields by default: status, followUpDate, productInterest, application, monthlyRequirement
+    // Allow full update for all authenticated users (not just admin)
+    // Field-level permissions are handled by applyFieldPermissions above
     const updateData: any = {};
 
     if (data.status !== undefined) updateData.status = data.status;
@@ -103,22 +166,21 @@ export async function PATCH(req: Request, { params }: Params) {
     if (data.productInterest !== undefined) updateData.productInterest = data.productInterest;
     if (data.application !== undefined) updateData.application = data.application;
     if (data.monthlyRequirement !== undefined) updateData.monthlyRequirement = data.monthlyRequirement;
-
-    // Allow full update if explicitly requested (for admin/initial creation)
-    if (body.allowFullUpdate && isRoleAllowed(auth.role, ['admin'])) {
-      if (data.companyName !== undefined) updateData.companyName = data.companyName;
-      if (data.contactName !== undefined) updateData.contactName = data.contactName;
-      if (data.email !== undefined) updateData.email = data.email;
-      if (data.phone !== undefined) updateData.phone = data.phone;
-      if (data.country !== undefined) updateData.country = data.country;
-      if (data.state !== undefined) updateData.state = data.state;
-      if (data.city !== undefined) updateData.city = data.city;
-      if (data.gstNo !== undefined) updateData.gstNo = data.gstNo;
-      if (data.billingAddress !== undefined) updateData.billingAddress = data.billingAddress;
-      if (data.shippingAddress !== undefined) updateData.shippingAddress = data.shippingAddress;
-      if (data.source !== undefined) updateData.source = data.source;
-      if (data.notes !== undefined) updateData.notes = data.notes;
-      if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
+    if (data.companyName !== undefined) updateData.companyName = data.companyName;
+    if (data.contactName !== undefined) updateData.contactName = data.contactName;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.country !== undefined) updateData.country = data.country;
+    if (data.state !== undefined) updateData.state = data.state;
+    if (data.city !== undefined) updateData.city = data.city;
+    if (data.gstNo !== undefined) updateData.gstNo = data.gstNo;
+    if (data.billingAddress !== undefined) updateData.billingAddress = data.billingAddress;
+    if (data.shippingAddress !== undefined) updateData.shippingAddress = data.shippingAddress;
+    if (data.source !== undefined) updateData.source = data.source;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    // Only allow ownerId update for admin
+    if (data.ownerId !== undefined && isRoleAllowed(auth.role, ['admin'])) {
+      updateData.ownerId = data.ownerId;
     }
 
     const updated = await prisma.lead.update({

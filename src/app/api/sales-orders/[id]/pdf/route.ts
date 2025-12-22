@@ -7,13 +7,13 @@ type Params = {
 };
 
 /**
- * GET /api/quotes/[id]/pdf
- * Generate and return a PDF for the specified quote
+ * GET /api/sales-orders/[id]/pdf
+ * Generate and return a PDF for the specified sales order
  */
 export async function GET(_req: Request, { params }: Params) {
   try {
     const prisma = await getPrismaClient();
-    const quote = await prisma.quote.findUnique({
+    const order = await prisma.salesOrder.findUnique({
       where: { id: params.id },
       include: {
         items: { include: { product: true } },
@@ -22,12 +22,12 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
 
-    if (!quote) {
-      return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+    if (!order) {
+      return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
     }
 
-    // Calculate totals
-    const items = quote.items.map((item) => {
+    // Calculate line items and subtotal
+    const items = order.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
       const qty = item.quantity;
       const discount = (item.discountPct || 0) / 100;
@@ -44,13 +44,13 @@ export async function GET(_req: Request, { params }: Params) {
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
 
     // GST logic based on customer country/state
-    const isDomestic = quote.customer.country === 'India';
+    const isDomestic = order.customer.country === 'India';
     let sgst = 0;
     let cgst = 0;
     let igst = 0;
 
-    if (isDomestic && quote.customer.state) {
-      if (quote.customer.state === 'Gujarat') {
+    if (isDomestic && order.customer.state) {
+      if (order.customer.state === 'Gujarat') {
         sgst = subtotal * 0.09;
         cgst = subtotal * 0.09;
       } else {
@@ -62,27 +62,27 @@ export async function GET(_req: Request, { params }: Params) {
     const total = subtotal + taxTotal;
 
     const pdfData = {
-      documentNumber: quote.quoteNumber,
-      documentType: 'Quote' as const,
-      issueDate: quote.issueDate,
-      paymentTerms: quote.paymentTerms || undefined,
-      incoTerms: quote.incoTerms || undefined,
-      poNumber: quote.poNumber || undefined,
-      poDate: quote.poDate || undefined,
-      salesPerson: quote.salesRep
+      documentNumber: order.orderNumber,
+      documentType: 'Sales Order' as const,
+      issueDate: order.orderDate,
+      paymentTerms: salesOrder.paymentTerms || undefined,
+      incoTerms: salesOrder.incoTerms || undefined,
+      poNumber: salesOrder.poNumber || undefined,
+      poDate: salesOrder.poDate || undefined,
+      salesPerson: order.salesRep
         ? {
-            name: quote.salesRep.name || quote.salesRep.email || '',
-            email: quote.salesRep.email || undefined,
+            name: order.salesRep.name || order.salesRep.email || '',
+            email: order.salesRep.email || undefined,
           }
         : undefined,
       customer: {
-        companyName: quote.customer.companyName,
-        billingAddress: quote.customer.billingAddress || undefined,
-        shippingAddress: quote.customer.shippingAddress || undefined,
-        contactName: quote.customer.contactName || undefined,
-        contactEmail: quote.customer.contactEmail || undefined,
-        contactPhone: quote.customer.contactPhone || undefined,
-        gstNo: quote.customer.gstNo || undefined,
+        companyName: order.customer.companyName,
+        billingAddress: order.customer.billingAddress || undefined,
+        shippingAddress: order.customer.shippingAddress || undefined,
+        contactName: order.customer.contactName || undefined,
+        contactEmail: order.customer.contactEmail || undefined,
+        contactPhone: order.customer.contactPhone || undefined,
+        gstNo: order.customer.gstNo || undefined,
       },
       items,
       subtotal,
@@ -95,7 +95,7 @@ export async function GET(_req: Request, { params }: Params) {
           }
         : undefined,
       total,
-      notes: quote.notes || undefined,
+      notes: order.notes || undefined,
       currency: 'INR',
     };
 
@@ -104,12 +104,13 @@ export async function GET(_req: Request, { params }: Params) {
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="quote-${quote.quoteNumber}.pdf"`,
+        'Content-Disposition': `attachment; filename="sales-order-${order.orderNumber}.pdf"`,
       },
     });
   } catch (error) {
-    console.error('Failed to generate quote PDF:', error);
+    console.error('Failed to generate sales order PDF:', error);
     return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
   }
 }
+
 

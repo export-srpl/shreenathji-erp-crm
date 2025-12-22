@@ -18,6 +18,7 @@ export async function GET(_req: Request, { params }: Params) {
       include: {
         items: { include: { product: true } },
         customer: true,
+        salesOrder: { include: { salesRep: true } },
       },
     });
 
@@ -41,14 +42,39 @@ export async function GET(_req: Request, { params }: Params) {
     });
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    // Simple tax calculation (18% GST for now - adjust based on your business logic)
-    const taxTotal = subtotal * 0.18;
+
+    // GST logic based on customer country/state
+    const isDomestic = invoice.customer.country === 'India';
+    let sgst = 0;
+    let cgst = 0;
+    let igst = 0;
+
+    if (isDomestic && invoice.customer.state) {
+      if (invoice.customer.state === 'Gujarat') {
+        sgst = subtotal * 0.09;
+        cgst = subtotal * 0.09;
+      } else {
+        igst = subtotal * 0.18;
+      }
+    }
+
+    const taxTotal = sgst + cgst + igst;
     const total = subtotal + taxTotal;
 
     const pdfData = {
       documentNumber: invoice.invoiceNumber,
       documentType: 'Invoice' as const,
       issueDate: invoice.issueDate,
+      paymentTerms: invoice.paymentTerms || undefined,
+      incoTerms: invoice.incoTerms || undefined,
+      poNumber: invoice.poNumber || undefined,
+      poDate: invoice.poDate || undefined,
+      salesPerson: invoice.salesOrder?.salesRep
+        ? {
+            name: invoice.salesOrder.salesRep.name || invoice.salesOrder.salesRep.email || '',
+            email: invoice.salesOrder.salesRep.email || undefined,
+          }
+        : undefined,
       customer: {
         companyName: invoice.customer.companyName,
         billingAddress: invoice.customer.billingAddress || undefined,
@@ -60,10 +86,14 @@ export async function GET(_req: Request, { params }: Params) {
       },
       items,
       subtotal,
-      tax: {
-        igst: taxTotal,
-        total: taxTotal,
-      },
+      tax: taxTotal
+        ? {
+            sgst: sgst || undefined,
+            cgst: cgst || undefined,
+            igst: igst || undefined,
+            total: taxTotal,
+          }
+        : undefined,
       total,
       notes: invoice.notes || undefined,
       currency: 'INR',

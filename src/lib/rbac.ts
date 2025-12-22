@@ -250,11 +250,14 @@ export async function getVisibilityFilter(
     }
   }
 
-  // 'own' scope: only records owned by user
+  // 'own' scope: only records owned by user (or unassigned leads for sales users)
   switch (resource) {
     case 'lead':
       return { 
-        ownerId: auth.userId,
+        OR: [
+          { ownerId: auth.userId },
+          { ownerId: null }, // Allow access to unassigned leads
+        ],
         ...countryFilter,
       };
     case 'customer':

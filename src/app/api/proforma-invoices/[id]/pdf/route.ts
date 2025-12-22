@@ -18,6 +18,7 @@ export async function GET(_req: Request, { params }: Params) {
       include: {
         items: { include: { product: true } },
         customer: true,
+        quote: { include: { salesRep: true } },
       },
     });
 
@@ -41,13 +42,39 @@ export async function GET(_req: Request, { params }: Params) {
     });
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    // Proforma invoices typically don't include tax
-    const total = subtotal;
+
+    // GST logic based on customer country/state
+    const isDomestic = proforma.customer.country === 'India';
+    let sgst = 0;
+    let cgst = 0;
+    let igst = 0;
+
+    if (isDomestic && proforma.customer.state) {
+      if (proforma.customer.state === 'Gujarat') {
+        sgst = subtotal * 0.09;
+        cgst = subtotal * 0.09;
+      } else {
+        igst = subtotal * 0.18;
+      }
+    }
+
+    const taxTotal = sgst + cgst + igst;
+    const total = subtotal + taxTotal;
 
     const pdfData = {
       documentNumber: proforma.proformaNumber,
       documentType: 'Proforma Invoice' as const,
       issueDate: proforma.issueDate,
+      paymentTerms: proforma.paymentTerms || undefined,
+      incoTerms: proforma.incoTerms || undefined,
+      poNumber: proforma.poNumber || undefined,
+      poDate: proforma.poDate || undefined,
+      salesPerson: proforma.quote?.salesRep
+        ? {
+            name: proforma.quote.salesRep.name || proforma.quote.salesRep.email || '',
+            email: proforma.quote.salesRep.email || undefined,
+          }
+        : undefined,
       customer: {
         companyName: proforma.customer.companyName,
         billingAddress: proforma.customer.billingAddress || undefined,
@@ -59,6 +86,14 @@ export async function GET(_req: Request, { params }: Params) {
       },
       items,
       subtotal,
+      tax: taxTotal
+        ? {
+            sgst: sgst || undefined,
+            cgst: cgst || undefined,
+            igst: igst || undefined,
+            total: taxTotal,
+          }
+        : undefined,
       total,
       notes: proforma.notes || undefined,
       currency: 'INR',

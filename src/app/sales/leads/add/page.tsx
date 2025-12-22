@@ -92,14 +92,18 @@ function LeadForm() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch users with Sales role
+        // Fetch all users to allow admin to assign any as salesperson
         const usersRes = await fetch('/api/users');
         if (usersRes.ok) {
           const users = await usersRes.json();
-          const salesUsers = users
-            .filter((u: any) => (u.role || '').toLowerCase() === 'sales')
-            .map((u: any) => ({ id: u.id, name: u.name || u.email || 'Unknown' }));
-          setSalesPeople(salesUsers);
+          const allUsers = users
+            .map((u: any) => ({
+              id: u.id,
+              name: u.name || u.email || 'Unknown',
+              role: (u.role || '').toLowerCase(),
+            }))
+            .filter((u: any) => u.name && u.name !== 'Unknown');
+          setSalesPeople(allUsers);
         }
 
         // Fetch products (from Inventory → Products)
@@ -305,10 +309,8 @@ function LeadForm() {
       let requestBody: any;
       
       if (isEdit) {
-        // When editing, send all fields with allowFullUpdate for admins
-        // For non-admins, still send all fields but backend will handle permissions
+        // When editing, send all fields - backend will handle permissions
         requestBody = {
-          allowFullUpdate: isAdmin,
           source: formData.get('leadSource') as string,
           companyName: formData.get('companyName') as string,
           gstNo: customerType === 'domestic' ? gstNumber : '',
@@ -716,17 +718,18 @@ function LeadForm() {
                               required
                               onValueChange={setAssignedSalesperson}
                               value={assignedSalesperson || initialValues?.assignedSalesperson || ''}
+                              disabled={!isAdmin}
                             >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a salesperson" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {salesPeople.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      {p.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a salesperson" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {salesPeople.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
                             </Select>
                         </div>
                         <div>

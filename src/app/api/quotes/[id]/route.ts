@@ -75,6 +75,11 @@ export async function PATCH(req: Request, { params }: Params) {
       data: {
         status: data.status,
         notes: data.notes,
+        incoTerms: rawBody.incoTerms !== undefined ? rawBody.incoTerms : undefined,
+        paymentTerms: rawBody.paymentTerms !== undefined ? rawBody.paymentTerms : undefined,
+        poNumber: rawBody.poNumber !== undefined ? rawBody.poNumber : undefined,
+        poDate: rawBody.poDate ? new Date(rawBody.poDate) : undefined,
+        salesRepId: rawBody.salesRepId !== undefined ? rawBody.salesRepId : undefined,
         items: data.items
           ? {
               deleteMany: { quoteId: params.id },

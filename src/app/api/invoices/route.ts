@@ -38,6 +38,10 @@ export async function POST(req: Request) {
       customerId: body.customerId,
       proformaId: body.proformaId ?? null,
       salesOrderId: body.salesOrderId ?? null,
+      incoTerms: body.incoTerms ?? null,
+      paymentTerms: body.paymentTerms ?? null,
+      poNumber: body.poNumber ?? null,
+      poDate: body.poDate ? new Date(body.poDate) : null,
       items: body.items
         ? {
             create: body.items.map((item: any) => ({

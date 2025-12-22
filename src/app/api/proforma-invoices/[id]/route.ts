@@ -47,6 +47,10 @@ export async function PATCH(req: Request, { params }: Params) {
       data: {
         status: body.status,
         notes: body.notes,
+        incoTerms: body.incoTerms !== undefined ? body.incoTerms : undefined,
+        paymentTerms: body.paymentTerms !== undefined ? body.paymentTerms : undefined,
+        poNumber: body.poNumber !== undefined ? body.poNumber : undefined,
+        poDate: body.poDate ? new Date(body.poDate) : undefined,
         items: body.items
           ? {
               deleteMany: { proformaId: params.id },

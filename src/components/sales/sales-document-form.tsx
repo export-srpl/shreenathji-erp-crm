@@ -99,13 +99,26 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [salesPeople, setSalesPeople] = useState<string[]>([]);
+  const [salesPersonIds, setSalesPersonIds] = useState<Record<string, string>>({});
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   // Fetch customers, products, and sales people from APIs
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingData(true);
       try {
+        // Fetch auth for role (to control who can change sales person)
+        try {
+          const meRes = await fetch('/api/auth/me');
+          if (meRes.ok) {
+            const me = await meRes.json();
+            setCurrentUserRole((me.role || '').toLowerCase());
+          }
+        } catch (err) {
+          console.error('Failed to fetch auth context for sales form:', err);
+        }
+
         const [customersRes, productsRes, usersRes] = await Promise.all([
           fetch('/api/customers'),
           fetch('/api/products'),
@@ -124,19 +137,27 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
             id: p.id,
             productName: p.name,
             category: '',
-            hsnCode: '', // TODO: add hsnCode to Prisma schema if needed
+            hsnCode: p.hsnCode || '', // Use hsnCode from Prisma if available
           }));
           setProducts(mappedProducts);
         }
 
         if (usersRes.ok) {
           const users = await usersRes.json();
-          // Filter users with Sales role and extract names
-          const salesUsers = users
-            .filter((u: any) => u.role === 'Sales')
+          // Include all users (Admin, Sales, etc.) as potential sales persons
+          const allUserNames = users
             .map((u: any) => u.name)
             .filter((name: string) => name && name !== 'Unknown');
-          setSalesPeople([...salesUsers, 'Other']);
+          setSalesPeople([...allUserNames, 'Other']);
+          
+          // Create mapping of name -> id for sales person selection
+          const nameToIdMap: Record<string, string> = {};
+          users.forEach((u: any) => {
+            if (u.name && u.name !== 'Unknown') {
+              nameToIdMap[u.name] = u.id;
+            }
+          });
+          setSalesPersonIds(nameToIdMap);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -179,6 +200,7 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
   const isEditMode = !!existingDocument;
 
   const isCustomerSelectionDisabled = isReadOnly;
+  const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
 
   const isDomestic = billTo.country === 'India';
 
@@ -273,9 +295,27 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       
       setCurrency((existingDocument as any).currency || existingDocument.currency || 'INR');
       if ((existingDocument as any).poNumber) setPoNumber((existingDocument as any).poNumber);
-      if ((existingDocument as any).poDate) setPoDate((existingDocument as any).poDate);
+      if ((existingDocument as any).poDate) {
+        const poDateValue = (existingDocument as any).poDate;
+        // Handle both Date objects and ISO strings
+        const dateStr = poDateValue instanceof Date 
+          ? poDateValue.toISOString().split('T')[0]
+          : poDateValue ? new Date(poDateValue).toISOString().split('T')[0] : '';
+        setPoDate(dateStr);
+      }
+      // Load commercial terms
+      if ((existingDocument as any).incoTerms) setIncoTerm((existingDocument as any).incoTerms);
+      if ((existingDocument as any).paymentTerms) setPaymentTerms((existingDocument as any).paymentTerms);
+      // Load sales person if available
+      if ((existingDocument as any).salesRep?.name) {
+        setSalesPerson((existingDocument as any).salesRep.name);
+      } else if ((existingDocument as any).salesRepId && salesPersonIds) {
+        // Find name by ID
+        const salesRepName = Object.entries(salesPersonIds).find(([_, id]) => id === (existingDocument as any).salesRepId)?.[0];
+        if (salesRepName) setSalesPerson(salesRepName);
+      }
     }
-  }, [isEditMode, existingDocument, existingCustomer, customers, sameAsBillTo, isLoadingData]);
+  }, [isEditMode, existingDocument, existingCustomer, customers, sameAsBillTo, isLoadingData, salesPersonIds]);
 
   useEffect(() => {
     if (sameAsBillTo) {
@@ -437,6 +477,11 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
         discountPct: 0,
       })),
       notes: additionalTerms || undefined,
+      // Add commercial terms fields
+      incoTerms: incoTerm || undefined,
+      paymentTerms: paymentTerms === 'Other' && !isDomestic ? otherPaymentTerms : (paymentTerms || undefined),
+      poNumber: poNumber || undefined,
+      poDate: poDate ? new Date(poDate).toISOString() : undefined,
     };
 
     // Add document-specific fields
@@ -448,6 +493,10 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       // If this quote originated from a lead, optionally attach leadId
       if (existingCustomer && (existingCustomer as any).leadId) {
         payload.leadId = (existingCustomer as any).leadId;
+      }
+      // Add sales person ID if selected
+      if (salesPerson && salesPerson !== 'Other' && salesPersonIds[salesPerson]) {
+        payload.salesRepId = salesPersonIds[salesPerson];
       }
     } else if (documentType === 'Proforma Invoice') {
       payload.issueDate = new Date().toISOString();
@@ -471,6 +520,10 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
         if ((existingDocument as any).quoteNumber) {
           payload.quoteId = (existingDocument as any).id;
         }
+      }
+      // Add sales person ID if selected
+      if (salesPerson && salesPerson !== 'Other' && salesPersonIds[salesPerson]) {
+        payload.salesRepId = salesPersonIds[salesPerson];
       }
     } else if (documentType === 'Invoice') {
       payload.issueDate = new Date().toISOString();
@@ -677,18 +730,27 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="salesPerson">Sales Person</Label>
-                            <Select onValueChange={setSalesPerson} value={salesPerson}>
-                            <SelectTrigger id="salesPerson">
+                            <Select
+                              onValueChange={setSalesPerson}
+                              value={salesPerson}
+                              disabled={!isAdmin || isSubmitting}
+                            >
+                              <SelectTrigger id="salesPerson">
                                 <SelectValue placeholder="Select Sales Person" />
-                            </SelectTrigger>
-                            <SelectContent>
+                              </SelectTrigger>
+                              <SelectContent>
                                 {salesPeople.map(person => (
-                                    <SelectItem key={person} value={person}>{person}</SelectItem>
+                                  <SelectItem key={person} value={person}>{person}</SelectItem>
                                 ))}
-                            </SelectContent>
+                              </SelectContent>
                             </Select>
                             {salesPerson === 'Other' && (
-                                <Input placeholder="Enter Sales Person Name" value={otherSalesPerson} onChange={(e) => setOtherSalesPerson(e.target.value)} />
+                              <Input
+                                placeholder="Enter Sales Person Name"
+                                value={otherSalesPerson}
+                                onChange={(e) => setOtherSalesPerson(e.target.value)}
+                                disabled={!isAdmin || isSubmitting}
+                              />
                             )}
                         </div>
                     </div>
