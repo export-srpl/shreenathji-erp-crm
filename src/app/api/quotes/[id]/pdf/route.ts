@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { generateDocumentPDF } from '@/lib/pdf-generator';
+import { requireAuth } from '@/lib/auth-utils';
+import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 
 type Params = {
   params: { id: string };
@@ -10,8 +12,16 @@ type Params = {
  * GET /api/quotes/[id]/pdf
  * Generate and return a PDF for the specified quote
  */
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   try {
+    // Check authentication
+    const authError = await requireAuth();
+    if (authError) return authError;
+
+    const auth = await getAuthContext(req);
+    if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'sales', 'finance'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const prisma = await getPrismaClient();
     const quote = await prisma.quote.findUnique({
       where: { id: params.id },
@@ -32,20 +42,23 @@ export async function GET(_req: Request, { params }: Params) {
 
     // Calculate totals
     const items = quote.items.map((item) => {
-      const unitPrice = Number(item.unitPrice);
-      const qty = item.quantity;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const qty = Number(item.quantity) || 0;
       const discount = (item.discountPct || 0) / 100;
       const amount = unitPrice * qty * (1 - discount);
       return {
-        productName: item.product.name,
+        productName: item.product?.name || 'Product',
         quantity: qty,
         unitPrice,
         discountPct: item.discountPct || 0,
-        amount,
+        amount: isNaN(amount) ? 0 : amount,
       };
     });
 
-    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const subtotal = items.reduce((sum, item) => {
+      const amount = typeof item.amount === 'number' && !isNaN(item.amount) ? item.amount : 0;
+      return sum + amount;
+    }, 0);
 
     // GST logic based on customer country/state
     const isDomestic = quote.customer.country === 'India';
@@ -105,10 +118,19 @@ export async function GET(_req: Request, { params }: Params) {
 
     const pdfBuffer = await generateDocumentPDF(pdfData);
 
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      console.error('Generated PDF buffer is empty');
+      return NextResponse.json(
+        { error: 'Failed to generate PDF', message: 'PDF buffer is empty' },
+        { status: 500 }
+      );
+    }
+
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="quote-${quote.quoteNumber}.pdf"`,
+        'Content-Length': pdfBuffer.length.toString(),
       },
     });
   } catch (error: any) {
