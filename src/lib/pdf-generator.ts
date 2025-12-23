@@ -11,6 +11,8 @@ export interface PDFDocumentData {
   incoTerms?: string;
   poNumber?: string;
   poDate?: Date;
+  destination?: string;
+  isDomestic?: boolean;
   salesPerson?: {
     name: string;
     email?: string;
@@ -27,6 +29,7 @@ export interface PDFDocumentData {
   };
   items: Array<{
     productName: string;
+    hsnCode?: string;
     quantity: number;
     unitPrice: number;
     discountPct?: number;
@@ -107,6 +110,91 @@ function ensurePdfkitStandardFonts() {
   } catch (e) {
     console.error('[PDF] Failed to ensure PDFKit standard fonts are available:', e);
   }
+}
+
+/**
+ * Convert a number into words (Indian numbering system for INR by default).
+ * Only the integer part is converted; paise/cents are ignored for simplicity.
+ */
+function amountToWords(amount: number, currency: string = 'INR'): string {
+  const num = Math.floor(typeof amount === 'number' && !isNaN(amount) ? amount : 0);
+
+  if (num === 0) {
+    return currency === 'INR'
+      ? 'Zero Rupees Only'
+      : 'Zero Only';
+  }
+
+  const belowTwenty = [
+    '',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen',
+    'Sixteen',
+    'Seventeen',
+    'Eighteen',
+    'Nineteen',
+  ];
+  const tens = [
+    '',
+    '',
+    'Twenty',
+    'Thirty',
+    'Forty',
+    'Fifty',
+    'Sixty',
+    'Seventy',
+    'Eighty',
+    'Ninety',
+  ];
+
+  function twoDigits(n: number): string {
+    if (n === 0) return '';
+    if (n < 20) return belowTwenty[n];
+    const t = Math.floor(n / 10);
+    const r = n % 10;
+    return `${tens[t]}${r ? ' ' + belowTwenty[r] : ''}`;
+  }
+
+  function threeDigits(n: number): string {
+    const h = Math.floor(n / 100);
+    const r = n % 100;
+    const parts: string[] = [];
+    if (h) parts.push(`${belowTwenty[h]} Hundred`);
+    if (r) parts.push(twoDigits(r));
+    return parts.join(' ');
+  }
+
+  // Indian numbering: Crore, Lakh, Thousand, Hundred, Tens
+  const crore = Math.floor(num / 10000000);
+  const lakh = Math.floor((num % 10000000) / 100000);
+  const thousand = Math.floor((num % 100000) / 1000);
+  const hundred = Math.floor((num % 1000));
+
+  const parts: string[] = [];
+  if (crore) parts.push(`${threeDigits(crore)} Crore`);
+  if (lakh) parts.push(`${threeDigits(lakh)} Lakh`);
+  if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
+  if (hundred) parts.push(threeDigits(hundred));
+
+  const words = parts.join(' ').trim();
+
+  if (currency === 'INR') {
+    return `${words} Rupees Only`;
+  }
+  return `${words} Only`;
 }
 
 /**
@@ -315,11 +403,38 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       doc.font('Helvetica-Bold').fontSize(14);
       doc.text(String(data.documentType ?? 'Document'), { align: 'left' });
 
+      // Meta info block (Document No/Date, PO details, Destination, Inco/Payment)
       doc.moveDown(0.5);
       doc.font('Helvetica').fontSize(9);
-      doc.text(`Document No: ${String(data.documentNumber ?? 'N/A')}`);
+
+      const metaStartY = doc.y;
+      const metaLeftX = doc.page.margins.left;
+      const metaRightX = doc.page.width - doc.page.margins.right;
+      const labelWidth = 90;
+      const valueWidth = (metaRightX - metaLeftX - labelWidth) / 2;
+
+      function drawMetaRow(
+        leftLabel: string,
+        leftValue: string,
+        rightLabel?: string,
+        rightValue?: string,
+      ) {
+        const y = doc.y;
+        if (leftLabel) {
+          doc.font('Helvetica-Bold').text(leftLabel, metaLeftX, y, { width: labelWidth });
+          doc.font('Helvetica').text(leftValue, metaLeftX + labelWidth, y, { width: valueWidth });
+        }
+        if (rightLabel) {
+          const rightLabelX = metaLeftX + labelWidth + valueWidth + 20;
+          doc.font('Helvetica-Bold').text(rightLabel, rightLabelX, y, { width: labelWidth });
+          doc.font('Helvetica').text(rightValue ?? '', rightLabelX + labelWidth, y, { width: valueWidth });
+        }
+        doc.moveDown(0.4);
+      }
+
+      // Document No & Date
+      let issueDate: Date;
       try {
-        let issueDate: Date;
         if (data.issueDate instanceof Date) {
           issueDate = data.issueDate;
         } else if (typeof data.issueDate === 'string') {
@@ -327,21 +442,28 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         } else {
           issueDate = new Date();
         }
-        // Validate date
         if (isNaN(issueDate.getTime())) {
           issueDate = new Date();
         }
-        const dateStr = issueDate.toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        doc.text(`Date: ${String(dateStr ?? '')}`);
-      } catch (e) {
-        console.error('[PDF] Error formatting issue date:', e);
-        const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        doc.text(`Date: ${String(dateStr ?? '')}`);
+      } catch {
+        issueDate = new Date();
       }
+      const issueDateStr = issueDate.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
 
-      if (data.poNumber || data.poDate) {
-        const poParts: string[] = [];
-        if (data.poNumber) poParts.push(`PO No: ${String(data.poNumber ?? '')}`);
+      drawMetaRow(
+        'Document No:',
+        String(data.documentNumber ?? 'N/A'),
+        'Document Date:',
+        issueDateStr,
+      );
+
+      // PO details (not used for Quote)
+      if (data.documentType !== 'Quote' && (data.poNumber || data.poDate)) {
+        let poDateStr = '';
         if (data.poDate) {
           try {
             let poDate: Date;
@@ -350,42 +472,71 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
             } else if (typeof data.poDate === 'string') {
               poDate = new Date(data.poDate);
             } else {
-              throw new Error('Invalid PO date type');
+              poDate = new Date();
             }
-            // Validate date
             if (!isNaN(poDate.getTime())) {
-              const poDateStr = poDate.toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-              poParts.push(`PO Date: ${String(poDateStr ?? '')}`);
+              poDateStr = poDate.toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+              });
             }
-          } catch (e) {
-            console.error('[PDF] Error formatting PO date:', e);
-            // Skip PO date if invalid
+          } catch {
+            // ignore invalid PO date
           }
         }
-        if (poParts.length > 0) {
-          doc.text(poParts.join(' | '));
-        }
+
+        drawMetaRow(
+          'PO No:',
+          String(data.poNumber ?? ''),
+          'PO Date:',
+          poDateStr,
+        );
       }
 
-      if (data.paymentTerms || data.incoTerms) {
-        const metaParts: string[] = [];
-        if (data.incoTerms) metaParts.push(`Inco Terms: ${String(data.incoTerms ?? '')}`);
-        if (data.paymentTerms) metaParts.push(`Payment Terms: ${String(data.paymentTerms ?? '')}`);
-        if (metaParts.length > 0) {
-          doc.text(metaParts.join(' | '));
-        }
+      // Destination & Inco Terms
+      if (data.destination || data.incoTerms) {
+        drawMetaRow(
+          'Destination:',
+          String(data.destination ?? ''),
+          'Inco Terms:',
+          String(data.incoTerms ?? ''),
+        );
       }
 
-      if (data.salesPerson?.name) {
-        const spParts: string[] = [`Sales Person: ${String(data.salesPerson.name ?? '')}`];
-        if (data.salesPerson.email) spParts.push(`Email: ${String(data.salesPerson.email ?? '')}`);
-        if (data.salesPerson.phone) spParts.push(`Mobile: ${String(data.salesPerson.phone ?? '')}`);
-        if (spParts.length > 0) {
-          doc.text(spParts.join(' | '));
-        }
+      // Payment Terms & Sales Person
+      const salesPersonSummary = data.salesPerson?.name
+        ? [
+            String(data.salesPerson.name ?? ''),
+            data.salesPerson.email ? `Email: ${String(data.salesPerson.email)}` : '',
+            data.salesPerson.phone ? `Mobile: ${String(data.salesPerson.phone)}` : '',
+          ]
+            .filter(Boolean)
+            .join(' | ')
+        : '';
+
+      if (data.paymentTerms || salesPersonSummary) {
+        drawMetaRow(
+          'Payment Terms:',
+          String(data.paymentTerms ?? ''),
+          salesPersonSummary ? 'Sales Person:' : '',
+          salesPersonSummary,
+        );
       }
 
-      doc.moveDown(1.5);
+      // Draw a subtle border around the meta block
+      const metaEndY = doc.y;
+      doc.rect(
+        metaLeftX - 4,
+        metaStartY - 2,
+        metaRightX - metaLeftX + 8,
+        metaEndY - metaStartY + 4,
+      )
+        .lineWidth(0.3)
+        .strokeColor('#cccccc')
+        .stroke();
+
+      doc.moveDown(1.2);
 
       // Parties section: Our company (From) and Customer (To)
       console.log('[PDF] Writing From/To addresses');
@@ -445,28 +596,41 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         const tableTop = doc.y;
         const itemHeight = 20;
         const colWidths = {
+          sl: 30,
           description: 200,
+          hsn: 70,
           qty: 60,
           price: 80,
-          discount: 60,
-          amount: 100,
+          per: 50,
+          amount: 80,
         };
+
+        const tableLeft = 40;
+        const tableRight = 550;
 
         // Table header
         doc.font('Helvetica-Bold');
-        doc.text('Description', 50, tableTop);
-        doc.text('Qty', 50 + colWidths.description, tableTop);
-        doc.text('Unit Price', 50 + colWidths.description + colWidths.qty, tableTop);
-        doc.text('Discount', 50 + colWidths.description + colWidths.qty + colWidths.price, tableTop);
-        doc.text('Amount', 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, tableTop);
-        
-        // Draw header line
-        doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-        doc.moveDown();
+        let x = tableLeft;
+        doc.text('Sl', x, tableTop, { width: colWidths.sl, align: 'center' });
+        x += colWidths.sl;
+        doc.text('Description of Goods', x, tableTop, { width: colWidths.description });
+        x += colWidths.description;
+        doc.text('HSN/SAC', x, tableTop, { width: colWidths.hsn, align: 'center' });
+        x += colWidths.hsn;
+        doc.text('Qty', x, tableTop, { width: colWidths.qty, align: 'right' });
+        x += colWidths.qty;
+        doc.text('Rate', x, tableTop, { width: colWidths.price, align: 'right' });
+        x += colWidths.price;
+        doc.text('Per', x, tableTop, { width: colWidths.per, align: 'center' });
+        x += colWidths.per;
+        doc.text('Amount', x, tableTop, { width: colWidths.amount, align: 'right' });
+
+        // Header bottom line
+        doc.moveTo(tableLeft, tableTop + 14).lineTo(tableRight, tableTop + 14).stroke();
 
         // Table rows
         doc.font('Helvetica');
-        let currentY = tableTop + 25;
+        let currentY = tableTop + itemHeight;
         data.items.forEach((item, index) => {
           try {
             const productName = String(item.productName ?? 'Product');
@@ -474,12 +638,39 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
             const unitPrice = typeof item.unitPrice === 'number' && !isNaN(item.unitPrice) ? item.unitPrice : 0;
             const discountPct = typeof item.discountPct === 'number' && !isNaN(item.discountPct) ? item.discountPct : 0;
             const amount = typeof item.amount === 'number' && !isNaN(item.amount) ? item.amount : 0;
-            
-            doc.text(productName.substring(0, 50), 50, currentY, { width: colWidths.description });
-            doc.text(String(quantity), 50 + colWidths.description, currentY, { width: colWidths.qty });
-            doc.text(formatCurrency(unitPrice, data.currency), 50 + colWidths.description + colWidths.qty, currentY, { width: colWidths.price });
-            doc.text(`${discountPct}%`, 50 + colWidths.description + colWidths.qty + colWidths.price, currentY, { width: colWidths.discount });
-            doc.text(formatCurrency(amount, data.currency), 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, currentY, { width: colWidths.amount });
+            const hsnCode = String(item.hsnCode ?? '');
+
+            let rowX = tableLeft;
+            doc.text(String(index + 1), rowX, currentY, { width: colWidths.sl, align: 'center' });
+            rowX += colWidths.sl;
+            doc.text(productName.substring(0, 80), rowX, currentY, {
+              width: colWidths.description,
+            });
+            rowX += colWidths.description;
+            doc.text(hsnCode, rowX, currentY, { width: colWidths.hsn, align: 'center' });
+            rowX += colWidths.hsn;
+            doc.text(String(quantity), rowX, currentY, { width: colWidths.qty, align: 'right' });
+            rowX += colWidths.qty;
+            doc.text(
+              formatCurrency(unitPrice, data.currency),
+              rowX,
+              currentY,
+              { width: colWidths.price, align: 'right' },
+            );
+            rowX += colWidths.price;
+            // Business-specific default unit (Kg) – can be adjusted later if needed
+            doc.text('Kg', rowX, currentY, { width: colWidths.per, align: 'center' });
+            rowX += colWidths.per;
+            doc.text(
+              formatCurrency(amount, data.currency),
+              rowX,
+              currentY,
+              { width: colWidths.amount, align: 'right' },
+            );
+
+            // Row bottom line
+            doc.moveTo(tableLeft, currentY + itemHeight - 6).lineTo(tableRight, currentY + itemHeight - 6).stroke();
+
             currentY += itemHeight;
           } catch (itemError) {
             console.error(`[PDF] Error rendering line item ${index}:`, itemError, item);
@@ -487,37 +678,103 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
           }
         });
 
+        // Vertical borders for the table
+        const tableBottom = currentY - 6;
+        const columnXs = [
+          tableLeft,
+          tableLeft + colWidths.sl,
+          tableLeft + colWidths.sl + colWidths.description,
+          tableLeft + colWidths.sl + colWidths.description + colWidths.hsn,
+          tableLeft + colWidths.sl + colWidths.description + colWidths.hsn + colWidths.qty,
+          tableLeft +
+            colWidths.sl +
+            colWidths.description +
+            colWidths.hsn +
+            colWidths.qty +
+            colWidths.price,
+          tableLeft +
+            colWidths.sl +
+            colWidths.description +
+            colWidths.hsn +
+            colWidths.qty +
+            colWidths.price +
+            colWidths.per,
+          tableRight,
+        ];
+        columnXs.forEach((cx) => {
+          doc.moveTo(cx, tableTop).lineTo(cx, tableBottom).stroke();
+        });
+
+        // Outer border
+        doc.rect(tableLeft, tableTop, tableRight - tableLeft, tableBottom - tableTop).stroke();
+
         // Totals section
         console.log('[PDF] Writing totals section');
-        const totalsY = currentY + 20;
-        doc.moveTo(50, totalsY).lineTo(550, totalsY).stroke();
         doc.moveDown(2);
 
         const rightAlignX = 400;
         doc.text('Subtotal:', rightAlignX, doc.y, { width: 100, align: 'right' });
-        doc.text(formatCurrency(data.subtotal, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+        doc.text(formatCurrency(data.subtotal, data.currency ?? 'INR'), 450, doc.y, {
+          width: 100,
+          align: 'right',
+        });
         doc.moveDown();
 
         if (data.tax) {
           if (data.tax.sgst && data.tax.cgst) {
             doc.text('SGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
+              width: 100,
+              align: 'right',
+            });
             doc.moveDown();
             doc.text('CGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
+              width: 100,
+              align: 'right',
+            });
             doc.moveDown();
           } else if (data.tax.igst) {
             doc.text('IGST (18%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
+              width: 100,
+              align: 'right',
+            });
             doc.moveDown();
           }
         }
 
         doc.font('Helvetica-Bold').fontSize(12);
         doc.text('Total:', rightAlignX, doc.y, { width: 100, align: 'right' });
-        doc.text(formatCurrency(data.total, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+        doc.text(formatCurrency(data.total, data.currency ?? 'INR'), 450, doc.y, {
+          width: 100,
+          align: 'right',
+        });
         doc.font('Helvetica').fontSize(10);
-        doc.moveDown(2);
+        doc.moveDown(1.5);
+
+        // Amount in words
+        const totalInWords = amountToWords(data.total, data.currency ?? 'INR');
+        const taxTotal = data.tax?.total ?? 0;
+        const taxInWords = taxTotal > 0 ? amountToWords(taxTotal, data.currency ?? 'INR') : '';
+
+        doc.font('Helvetica-Bold').text('Amount Chargeable (in words):', {
+          continued: false,
+        });
+        doc.font('Helvetica').text(
+          `${data.currency ?? 'INR'} ${totalInWords}`,
+          { indent: 20 },
+        );
+        doc.moveDown(0.7);
+
+        if (taxInWords) {
+          doc.font('Helvetica-Bold').text('Tax Amount (in words):', { continued: false });
+          doc.font('Helvetica').text(
+            `${data.currency ?? 'INR'} ${taxInWords}`,
+            { indent: 20 },
+          );
+          doc.moveDown(1);
+        }
       } catch (tableError: any) {
         console.error('[PDF] Error rendering table/totals:', tableError);
         throw new Error(`Failed to render table/totals: ${tableError?.message || tableError}`);
@@ -527,16 +784,34 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       if (data.notes) {
         try {
           console.log('[PDF] Writing notes');
-          doc.text('Notes:', { continued: false });
+          doc.font('Helvetica-Bold').text('Notes:', { continued: false });
           // Ensure notes is a string and not too long
           const notesText = String(data.notes ?? '').substring(0, 2000);
-          doc.text(notesText, { indent: 20 });
+          doc.font('Helvetica').text(notesText, { indent: 20 });
           doc.moveDown();
         } catch (e) {
           console.error('[PDF] Error rendering notes:', e);
           // Continue without notes if there's an error
         }
       }
+
+      // Declaration and computer-generated note
+      doc.moveDown(1);
+      doc.font('Helvetica-Bold').fontSize(9).text(
+        'Declaration:',
+        { continued: false },
+      );
+      doc.font('Helvetica').text(
+        'We declare that this document shows the actual price of the goods described and that all particulars are true and correct.',
+        { indent: 20 },
+      );
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica-Oblique')
+        .fontSize(8)
+        .text(
+          'This is a computer-generated document and does not require any signature or stamp.',
+        );
 
       // Finalize the PDF - ensure we call end() to trigger the 'end' event
       console.log('[PDF] Finalizing PDF document');

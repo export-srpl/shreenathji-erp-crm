@@ -64,6 +64,7 @@ export async function GET(req: Request, { params }: Params) {
       const amount = unitPrice * qty * (1 - discount);
       return {
         productName: String(item.product?.name ?? 'Product'),
+        hsnCode: item.product?.hsnCode || (item as any).hsnCode || undefined,
         quantity: qty,
         unitPrice,
         discountPct: item.discountPct || 0,
@@ -97,6 +98,14 @@ export async function GET(req: Request, { params }: Params) {
 
     const taxTotal = sgst + cgst + igst;
     const total = subtotal + taxTotal;
+
+    // Destination: for domestic, just state; for international, city + state or cityState
+    const destination =
+      isDomestic
+        ? proforma.customer.state || proforma.customer.city || proforma.customer.country
+        : [proforma.customer.city, proforma.customer.state].filter(Boolean).join(', ') ||
+          (proforma.customer as any).cityState ||
+          proforma.customer.country;
     
     console.log('[PDF API] Tax total:', taxTotal, 'Total:', total);
 
@@ -108,6 +117,8 @@ export async function GET(req: Request, { params }: Params) {
       incoTerms: proforma.incoTerms ? String(proforma.incoTerms) : undefined,
       poNumber: proforma.poNumber ? String(proforma.poNumber) : undefined,
       poDate: proforma.poDate ? (proforma.poDate instanceof Date ? proforma.poDate : new Date(proforma.poDate)) : undefined,
+      destination: destination || undefined,
+      isDomestic,
       salesPerson: proforma.quote?.salesRep
         ? {
             name: String(proforma.quote.salesRep.name ?? proforma.quote.salesRep.email ?? 'Sales Person'),

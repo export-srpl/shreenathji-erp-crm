@@ -48,6 +48,7 @@ export async function GET(req: Request, { params }: Params) {
       const amount = unitPrice * qty * (1 - discount);
       return {
         productName: item.product?.name || 'Product',
+        hsnCode: item.product?.hsnCode || undefined,
         quantity: qty,
         unitPrice,
         discountPct: item.discountPct || 0,
@@ -78,6 +79,14 @@ export async function GET(req: Request, { params }: Params) {
     const taxTotal = sgst + cgst + igst;
     const total = subtotal + taxTotal;
 
+    // Destination: for domestic, just state; for international, city + state or cityState
+    const destination =
+      isDomestic
+        ? quote.customer.state || quote.customer.city || quote.customer.country
+        : [quote.customer.city, quote.customer.state].filter(Boolean).join(', ') ||
+          (quote.customer as any).cityState ||
+          quote.customer.country;
+
     const pdfData = {
       documentNumber: quote.quoteNumber,
       documentType: 'Quote' as const,
@@ -86,6 +95,8 @@ export async function GET(req: Request, { params }: Params) {
       incoTerms: quote.incoTerms || undefined,
       poNumber: quote.poNumber || undefined,
       poDate: quote.poDate || undefined,
+      destination: destination || undefined,
+      isDomestic,
       salesPerson: quote.salesRep
         ? {
             name: quote.salesRep.name || quote.salesRep.email || 'Sales Person',
