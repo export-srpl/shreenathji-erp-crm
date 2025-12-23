@@ -45,6 +45,71 @@ export interface PDFDocumentData {
 }
 
 /**
+ * Ensure PDFKit's standard font metric files exist at the runtime path used in the compiled bundle.
+ *
+ * In the Next.js server build, PDFKit tries to load AFM files like:
+ *   .next/server/chunks/data/Helvetica.afm
+ *
+ * On some setups these files are not present by default, which causes ENOENT errors like:
+ *   ENOENT: no such file or directory, open '.next/server/chunks/data/Helvetica.afm'
+ *
+ * To make this robust, we copy the AFM files from node_modules/pdfkit/js/data into that
+ * runtime location the first time a PDF is generated.
+ */
+function ensurePdfkitStandardFonts() {
+  try {
+    const projectRoot = process.cwd();
+    const sourceDir = path.join(projectRoot, 'node_modules', 'pdfkit', 'js', 'data');
+    const runtimeDir = path.join(projectRoot, '.next', 'server', 'chunks', 'data');
+
+    // If the source directory doesn't exist, there's nothing we can do – just log and continue.
+    if (!fs.existsSync(sourceDir)) {
+      console.warn('[PDF] PDFKit data directory not found at', sourceDir);
+      return;
+    }
+
+    // Ensure the runtime data directory exists.
+    if (!fs.existsSync(runtimeDir)) {
+      fs.mkdirSync(runtimeDir, { recursive: true });
+    }
+
+    const fontFiles = [
+      'Helvetica.afm',
+      'Helvetica-Bold.afm',
+      'Helvetica-Oblique.afm',
+      'Helvetica-BoldOblique.afm',
+      'Times-Roman.afm',
+      'Times-Bold.afm',
+      'Times-Italic.afm',
+      'Times-BoldItalic.afm',
+      'Courier.afm',
+      'Courier-Bold.afm',
+      'Courier-Oblique.afm',
+      'Courier-BoldOblique.afm',
+      'Symbol.afm',
+      'ZapfDingbats.afm',
+    ];
+
+    for (const file of fontFiles) {
+      const src = path.join(sourceDir, file);
+      const dest = path.join(runtimeDir, file);
+
+      // Only copy if the source exists and destination is missing
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        try {
+          fs.copyFileSync(src, dest);
+          console.log('[PDF] Copied PDFKit font data file to runtime directory:', file);
+        } catch (copyErr) {
+          console.warn('[PDF] Failed to copy PDFKit font data file:', file, copyErr);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[PDF] Failed to ensure PDFKit standard fonts are available:', e);
+  }
+}
+
+/**
  * Generate a PDF document for quotes, proforma invoices, or invoices
  */
 export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer> {
@@ -76,6 +141,10 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
   }
 
   return new Promise((resolve, reject) => {
+    // Make sure the standard font metric files exist where PDFKit expects them.
+    // This prevents ENOENT errors for Helvetica.afm and similar files at runtime.
+    ensurePdfkitStandardFonts();
+
     // Add timeout to prevent hanging
     const timeout = setTimeout(() => {
       console.error('[PDF] Timeout: PDF generation exceeded 30 seconds');
