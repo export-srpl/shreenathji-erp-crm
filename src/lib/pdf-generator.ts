@@ -221,8 +221,14 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
       // Draw header/footer for first page and on every new page
       console.log('[PDF] Drawing initial header and footer');
-      drawHeader();
-      drawFooter();
+      try {
+        drawHeader();
+        drawFooter();
+      } catch (headerError: any) {
+        console.error('[PDF] Error drawing initial header/footer:', headerError);
+        throw new Error(`Failed to draw header/footer: ${headerError?.message || headerError}`);
+      }
+      
       doc.on('pageAdded', () => {
         try {
           console.log('[PDF] New page added, drawing header/footer');
@@ -317,23 +323,23 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       const margin = doc.page.margins.left;
       const colWidth = (doc.page.width - margin * 2) / 2 - 10;
       const blockTop = doc.y;
+      const lineHeight = 12;
 
       doc.fontSize(9);
       // From (our company)
       let fromY = blockTop;
       doc.font('Helvetica-Bold').text('From', margin, fromY);
-      doc.font('Helvetica');
-      fromY = doc.y;
-      doc.text('Shreenathji Rasayan Private Limited', margin, fromY);
-      fromY = doc.y;
+      fromY += lineHeight;
+      doc.font('Helvetica').text('Shreenathji Rasayan Private Limited', margin, fromY);
+      fromY += lineHeight;
       doc.text('202, Neptune Harmony, Next to Ashok Vatika BRTS Stop,', margin, fromY);
-      fromY = doc.y;
+      fromY += lineHeight;
       doc.text('Iscon–Ambali Road, Ahmedabad – 380058, Gujarat, India', margin, fromY);
-      fromY = doc.y;
+      fromY += lineHeight;
       doc.text('CIN No.: U24110GJ2006PTC049339', margin, fromY);
       // GST for our company can be configured via environment
       if (process.env.COMPANY_GSTIN) {
-        fromY = doc.y;
+        fromY += lineHeight;
         doc.text(`GSTIN: ${String(process.env.COMPANY_GSTIN ?? '')}`, margin, fromY);
       }
 
@@ -341,105 +347,112 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       const toX = margin + colWidth + 20;
       let toY = blockTop;
       doc.font('Helvetica-Bold').text('To', toX, toY);
-      doc.font('Helvetica');
-      toY = doc.y;
-      doc.text(String(data.customer.companyName ?? 'Customer'), toX, toY);
+      toY += lineHeight;
+      doc.font('Helvetica').text(String(data.customer.companyName ?? 'Customer'), toX, toY);
       if (data.customer.billingAddress) {
         const addressLines = String(data.customer.billingAddress ?? '').split('\n');
         addressLines.forEach((line) => {
           const trimmedLine = line.trim();
           if (trimmedLine) {
-            toY = doc.y;
+            toY += lineHeight;
             doc.text(String(trimmedLine), toX, toY);
           }
         });
       }
       if (data.customer.gstNo) {
-        toY = doc.y;
+        toY += lineHeight;
         doc.text(`GSTIN: ${String(data.customer.gstNo ?? '')}`, toX, toY);
       }
+      
+      // Update doc.y to the bottom of the addresses section
+      doc.y = Math.max(fromY, toY) + lineHeight;
 
       doc.moveDown(2);
 
       // Line items table
       console.log('[PDF] Writing line items table');
-      doc.fontSize(10);
-      const tableTop = doc.y;
-      const itemHeight = 20;
-      const colWidths = {
-        description: 200,
-        qty: 60,
-        price: 80,
-        discount: 60,
-        amount: 100,
-      };
+      try {
+        doc.fontSize(10);
+        const tableTop = doc.y;
+        const itemHeight = 20;
+        const colWidths = {
+          description: 200,
+          qty: 60,
+          price: 80,
+          discount: 60,
+          amount: 100,
+        };
 
-      // Table header
-      doc.font('Helvetica-Bold');
-      doc.text('Description', 50, tableTop);
-      doc.text('Qty', 50 + colWidths.description, tableTop);
-      doc.text('Unit Price', 50 + colWidths.description + colWidths.qty, tableTop);
-      doc.text('Discount', 50 + colWidths.description + colWidths.qty + colWidths.price, tableTop);
-      doc.text('Amount', 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, tableTop);
-      
-      // Draw header line
-      doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-      doc.moveDown();
+        // Table header
+        doc.font('Helvetica-Bold');
+        doc.text('Description', 50, tableTop);
+        doc.text('Qty', 50 + colWidths.description, tableTop);
+        doc.text('Unit Price', 50 + colWidths.description + colWidths.qty, tableTop);
+        doc.text('Discount', 50 + colWidths.description + colWidths.qty + colWidths.price, tableTop);
+        doc.text('Amount', 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, tableTop);
+        
+        // Draw header line
+        doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+        doc.moveDown();
 
-      // Table rows
-      doc.font('Helvetica');
-      let currentY = tableTop + 25;
-      data.items.forEach((item, index) => {
-        try {
-          const productName = String(item.productName ?? 'Product');
-          const quantity = typeof item.quantity === 'number' ? item.quantity : 0;
-          const unitPrice = typeof item.unitPrice === 'number' && !isNaN(item.unitPrice) ? item.unitPrice : 0;
-          const discountPct = typeof item.discountPct === 'number' && !isNaN(item.discountPct) ? item.discountPct : 0;
-          const amount = typeof item.amount === 'number' && !isNaN(item.amount) ? item.amount : 0;
-          
-          doc.text(productName.substring(0, 50), 50, currentY, { width: colWidths.description });
-          doc.text(String(quantity), 50 + colWidths.description, currentY, { width: colWidths.qty });
-          doc.text(formatCurrency(unitPrice, data.currency), 50 + colWidths.description + colWidths.qty, currentY, { width: colWidths.price });
-          doc.text(`${discountPct}%`, 50 + colWidths.description + colWidths.qty + colWidths.price, currentY, { width: colWidths.discount });
-          doc.text(formatCurrency(amount, data.currency), 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, currentY, { width: colWidths.amount });
-          currentY += itemHeight;
-        } catch (itemError) {
-          console.error(`[PDF] Error rendering line item ${index}:`, itemError, item);
-          // Skip this item and continue
+        // Table rows
+        doc.font('Helvetica');
+        let currentY = tableTop + 25;
+        data.items.forEach((item, index) => {
+          try {
+            const productName = String(item.productName ?? 'Product');
+            const quantity = typeof item.quantity === 'number' ? item.quantity : 0;
+            const unitPrice = typeof item.unitPrice === 'number' && !isNaN(item.unitPrice) ? item.unitPrice : 0;
+            const discountPct = typeof item.discountPct === 'number' && !isNaN(item.discountPct) ? item.discountPct : 0;
+            const amount = typeof item.amount === 'number' && !isNaN(item.amount) ? item.amount : 0;
+            
+            doc.text(productName.substring(0, 50), 50, currentY, { width: colWidths.description });
+            doc.text(String(quantity), 50 + colWidths.description, currentY, { width: colWidths.qty });
+            doc.text(formatCurrency(unitPrice, data.currency), 50 + colWidths.description + colWidths.qty, currentY, { width: colWidths.price });
+            doc.text(`${discountPct}%`, 50 + colWidths.description + colWidths.qty + colWidths.price, currentY, { width: colWidths.discount });
+            doc.text(formatCurrency(amount, data.currency), 50 + colWidths.description + colWidths.qty + colWidths.price + colWidths.discount, currentY, { width: colWidths.amount });
+            currentY += itemHeight;
+          } catch (itemError) {
+            console.error(`[PDF] Error rendering line item ${index}:`, itemError, item);
+            // Skip this item and continue
+          }
+        });
+
+        // Totals section
+        console.log('[PDF] Writing totals section');
+        const totalsY = currentY + 20;
+        doc.moveTo(50, totalsY).lineTo(550, totalsY).stroke();
+        doc.moveDown(2);
+
+        const rightAlignX = 400;
+        doc.text('Subtotal:', rightAlignX, doc.y, { width: 100, align: 'right' });
+        doc.text(formatCurrency(data.subtotal, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+        doc.moveDown();
+
+        if (data.tax) {
+          if (data.tax.sgst && data.tax.cgst) {
+            doc.text('SGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.moveDown();
+            doc.text('CGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.moveDown();
+          } else if (data.tax.igst) {
+            doc.text('IGST (18%):', rightAlignX, doc.y, { width: 100, align: 'right' });
+            doc.text(formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+            doc.moveDown();
+          }
         }
-      });
 
-      // Totals section
-      console.log('[PDF] Writing totals section');
-      const totalsY = currentY + 20;
-      doc.moveTo(50, totalsY).lineTo(550, totalsY).stroke();
-      doc.moveDown(2);
-
-      const rightAlignX = 400;
-      doc.text('Subtotal:', rightAlignX, doc.y, { width: 100, align: 'right' });
-      doc.text(formatCurrency(data.subtotal, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
-      doc.moveDown();
-
-      if (data.tax) {
-        if (data.tax.sgst && data.tax.cgst) {
-          doc.text('SGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-          doc.text(formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
-          doc.moveDown();
-          doc.text('CGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-          doc.text(formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
-          doc.moveDown();
-        } else if (data.tax.igst) {
-          doc.text('IGST (18%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-          doc.text(formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
-          doc.moveDown();
-        }
+        doc.font('Helvetica-Bold').fontSize(12);
+        doc.text('Total:', rightAlignX, doc.y, { width: 100, align: 'right' });
+        doc.text(formatCurrency(data.total, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
+        doc.font('Helvetica').fontSize(10);
+        doc.moveDown(2);
+      } catch (tableError: any) {
+        console.error('[PDF] Error rendering table/totals:', tableError);
+        throw new Error(`Failed to render table/totals: ${tableError?.message || tableError}`);
       }
-
-      doc.font('Helvetica-Bold').fontSize(12);
-      doc.text('Total:', rightAlignX, doc.y, { width: 100, align: 'right' });
-      doc.text(formatCurrency(data.total, data.currency ?? 'INR'), 450, doc.y, { width: 100, align: 'right' });
-      doc.font('Helvetica').fontSize(10);
-      doc.moveDown(2);
 
       // Notes
       if (data.notes) {
@@ -463,15 +476,6 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         if (hasEnded) {
           console.warn('[PDF] Attempted to end PDF document that has already ended');
           return;
-        }
-        
-        // Ensure all content is flushed before ending
-        if (doc && typeof doc.flush === 'function') {
-          try {
-            doc.flush();
-          } catch (flushError) {
-            console.warn('[PDF] Error flushing PDF document (non-critical):', flushError);
-          }
         }
         
         // End the document - this will trigger the 'end' event
