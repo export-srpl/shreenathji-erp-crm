@@ -257,8 +257,9 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
     try {
       console.log('[PDF] Creating PDFDocument instance');
+      // Slightly tighter margins to reduce excessive top whitespace and balance left/right
       doc = new PDFDocument({
-        margin: 60,
+        margin: 50,
         size: 'A4',
         autoFirstPage: true,
       });
@@ -308,13 +309,13 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
       const drawHeader = () => {
         console.log('[PDF] Drawing header');
-        const headerTop = 30;
+        const headerTop = 24;
         const pageWidth = doc.page.width;
         const margin = doc.page.margins.left;
 
         doc.save();
 
-        // Layout: logo on the left, company block on the right, full-width divider underneath.
+        // Layout: logo on the left, company block on the right, full-width divider & border underneath.
         let textStartX = margin;
         const logoMaxWidth = 80;
         const logoMaxHeight = 40;
@@ -371,11 +372,25 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
           .strokeColor(brandColor)
           .stroke();
 
+        // Box the entire header (logo + company block) for a strong, structured feel
+        const headerBoxTop = headerTop - 4;
+        const headerBoxHeight = dividerY - headerBoxTop + 4;
+        doc
+          .rect(
+            margin - 2,
+            headerBoxTop,
+            pageWidth - 2 * margin + 4,
+            headerBoxHeight,
+          )
+          .lineWidth(0.7)
+          .strokeColor('#000000')
+          .stroke();
+
         doc.restore();
 
         // Reset content Y just below header
         doc.moveDown();
-        doc.y = dividerY + 10;
+        doc.y = dividerY + 8;
       };
 
       const drawFooter = () => {
@@ -447,8 +462,11 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       const metaStartY = doc.y;
       const metaLeftX = doc.page.margins.left;
       const metaRightX = doc.page.width - doc.page.margins.right;
-      const labelWidth = 90;
-      const valueWidth = (metaRightX - metaLeftX - labelWidth) / 2;
+      const totalMetaWidth = metaRightX - metaLeftX;
+      // 4 equal columns (label+value pairs) for a compact metadata grid
+      const cellWidth = totalMetaWidth / 4;
+
+      const rowYPositions: number[] = [];
 
       function drawMetaRow(
         leftLabel: string,
@@ -457,16 +475,27 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         rightValue?: string,
       ) {
         const y = doc.y;
+        rowYPositions.push(y);
+
+        // Left pair occupies first two cells, right pair the next two
         if (leftLabel) {
-          doc.font('Helvetica-Bold').text(leftLabel, metaLeftX, y, { width: labelWidth });
-          doc.font('Helvetica').text(leftValue, metaLeftX + labelWidth, y, { width: valueWidth });
+          doc.font('Helvetica-Bold').text(leftLabel, metaLeftX + 4, y, {
+            width: cellWidth - 8,
+          });
+          doc.font('Helvetica').text(leftValue, metaLeftX + cellWidth + 4, y, {
+            width: cellWidth - 8,
+          });
         }
         if (rightLabel) {
-          const rightLabelX = metaLeftX + labelWidth + valueWidth + 20;
-          doc.font('Helvetica-Bold').text(rightLabel, rightLabelX, y, { width: labelWidth });
-          doc.font('Helvetica').text(rightValue ?? '', rightLabelX + labelWidth, y, { width: valueWidth });
+          const rightLabelX = metaLeftX + cellWidth * 2;
+          doc.font('Helvetica-Bold').text(rightLabel, rightLabelX + 4, y, {
+            width: cellWidth - 8,
+          });
+          doc.font('Helvetica').text(rightValue ?? '', rightLabelX + cellWidth + 4, y, {
+            width: cellWidth - 8,
+          });
         }
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
       }
 
       // Document No & Date
@@ -561,49 +590,79 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         );
       }
 
-      // Draw a subtle border around the meta block
+      // Draw a full grid around the meta block – strong, ROTOMAC-style
       const metaEndY = doc.y;
-      doc.rect(
-        metaLeftX - 4,
-        metaStartY - 2,
-        metaRightX - metaLeftX + 8,
-        metaEndY - metaStartY + 4,
-      )
-        .lineWidth(0.3)
-        .strokeColor('#cccccc')
+      const metaBoxTop = metaStartY - 2;
+      const metaBoxBottom = metaEndY + 2;
+      const metaBoxHeight = metaBoxBottom - metaBoxTop;
+
+      // Outer border
+      doc
+        .rect(metaLeftX - 2, metaBoxTop, totalMetaWidth + 4, metaBoxHeight)
+        .lineWidth(0.7)
+        .strokeColor('#000000')
         .stroke();
+
+      // Vertical grid lines for 4 equal columns
+      for (let i = 1; i < 4; i++) {
+        const x = metaLeftX + cellWidth * i;
+        doc
+          .moveTo(x, metaBoxTop)
+          .lineTo(x, metaBoxBottom)
+          .lineWidth(0.5)
+          .strokeColor('#000000')
+          .stroke();
+      }
+
+      // Horizontal lines between rows
+      rowYPositions.forEach((y) => {
+        const lineY = y - 2;
+        if (lineY > metaBoxTop && lineY < metaBoxBottom) {
+          doc
+            .moveTo(metaLeftX - 2, lineY)
+            .lineTo(metaLeftX - 2 + totalMetaWidth + 4, lineY)
+            .lineWidth(0.5)
+            .strokeColor('#000000')
+            .stroke();
+        }
+      });
 
       doc.moveDown(1.2);
 
       // Parties section: Our company (From) and Customer (To)
       console.log('[PDF] Writing From/To addresses');
       const margin = doc.page.margins.left;
-      const colWidth = (doc.page.width - margin * 2) / 2 - 10;
+      const colWidth = (doc.page.width - margin * 2) / 2;
       const blockTop = doc.y;
       const lineHeight = 12;
 
       doc.fontSize(9);
+
+      // Outer box for both parties
+      const partyBoxLeft = margin - 2;
+      const partyBoxRight = doc.page.width - margin + 2;
+
       // From (our company)
-      let fromY = blockTop;
-      doc.font('Helvetica-Bold').text('From', margin, fromY);
+      let fromY = blockTop + 6;
+      const fromX = margin + 2;
+      doc.font('Helvetica-Bold').text('Seller:', fromX, fromY);
       fromY += lineHeight;
-      doc.font('Helvetica').text('Shreenathji Rasayan Private Limited', margin, fromY);
+      doc.font('Helvetica').text('Shreenathji Rasayan Private Limited', fromX, fromY);
       fromY += lineHeight;
-      doc.text('202, Neptune Harmony, Next to Ashok Vatika BRTS Stop,', margin, fromY);
+      doc.text('202, Neptune Harmony, Next to Ashok Vatika BRTS Stop,', fromX, fromY);
       fromY += lineHeight;
-      doc.text('Iscon–Ambali Road, Ahmedabad – 380058, Gujarat, India', margin, fromY);
+      doc.text('Iscon–Ambali Road, Ahmedabad – 380058, Gujarat, India', fromX, fromY);
       fromY += lineHeight;
-      doc.text('CIN No.: U24110GJ2006PTC049339', margin, fromY);
-      // GST for our company can be configured via environment
+      doc.text('CIN No.: U24110GJ2006PTC049339', fromX, fromY);
       if (process.env.COMPANY_GSTIN) {
         fromY += lineHeight;
-        doc.text(`GSTIN: ${String(process.env.COMPANY_GSTIN ?? '')}`, margin, fromY);
+        doc.text(`GSTIN: ${String(process.env.COMPANY_GSTIN ?? '')}`, fromX, fromY);
       }
 
       // To (customer)
-      const toX = margin + colWidth + 20;
-      let toY = blockTop;
-      doc.font('Helvetica-Bold').text('To', toX, toY);
+      const toX = margin + colWidth + 2;
+      let toY = blockTop + 6;
+      doc.font('Helvetica-Bold').text('Buyer:', toX, toY);
       toY += lineHeight;
       doc.font('Helvetica').text(String(data.customer.companyName ?? 'Customer'), toX, toY);
       if (data.customer.billingAddress) {
@@ -621,10 +680,31 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         doc.text(`GSTIN: ${String(data.customer.gstNo ?? '')}`, toX, toY);
       }
       
-      // Update doc.y to the bottom of the addresses section
-      doc.y = Math.max(fromY, toY) + lineHeight;
+      // Box and vertical separator to match ROTOMAC two-column party section
+      const partyBottom = Math.max(fromY, toY) + lineHeight;
+      doc
+        .rect(
+          partyBoxLeft,
+          blockTop,
+          partyBoxRight - partyBoxLeft,
+          partyBottom - blockTop,
+        )
+        .lineWidth(0.7)
+        .strokeColor('#000000')
+        .stroke();
 
-      doc.moveDown(2);
+      // Vertical split between Seller and Buyer
+      const middleX = margin + colWidth;
+      doc
+        .moveTo(middleX, blockTop)
+        .lineTo(middleX, partyBottom)
+        .lineWidth(0.7)
+        .strokeColor('#000000')
+        .stroke();
+
+      // Update doc.y to the bottom of the addresses section
+      doc.y = partyBottom + 6;
+      doc.moveDown(1);
 
       // Line items table
       console.log('[PDF] Writing line items table');
@@ -745,73 +825,113 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         // Outer border
         doc.rect(tableLeft, tableTop, tableRight - tableLeft, tableBottom - tableTop).stroke();
 
-        // Totals section
+        // Totals section – boxed, right-aligned, with breathing space
         console.log('[PDF] Writing totals section');
-        doc.moveDown(2);
+        doc.moveDown(1.5);
 
-        const rightAlignX = 400;
-        doc.text('Subtotal:', rightAlignX, doc.y, { width: 100, align: 'right' });
-        doc.text(formatCurrency(data.subtotal, data.currency ?? 'INR'), 450, doc.y, {
-          width: 100,
-          align: 'right',
-        });
-        doc.moveDown();
+        const totalsBoxLeft = 320;
+        const totalsBoxRight = 550;
+        const labelWidth = 90;
+        const valueWidth = totalsBoxRight - totalsBoxLeft - labelWidth - 8;
+        const totalsStartY = doc.y;
+
+        function totalsRow(label: string, value: string) {
+          const y = doc.y;
+          doc.font('Helvetica-Bold').text(label, totalsBoxLeft, y, {
+            width: labelWidth,
+            align: 'right',
+          });
+          doc.font('Helvetica').text(value, totalsBoxLeft + labelWidth + 8, y, {
+            width: valueWidth,
+            align: 'right',
+          });
+          doc.moveDown(0.7);
+        }
+
+        totalsRow('Subtotal:', formatCurrency(data.subtotal, data.currency ?? 'INR'));
 
         if (data.tax) {
           if (data.tax.sgst && data.tax.cgst) {
-            doc.text('SGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
-              width: 100,
-              align: 'right',
-            });
-            doc.moveDown();
-            doc.text('CGST (9%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
-              width: 100,
-              align: 'right',
-            });
-            doc.moveDown();
+            totalsRow('SGST (9%):', formatCurrency(data.tax.sgst ?? 0, data.currency ?? 'INR'));
+            totalsRow('CGST (9%):', formatCurrency(data.tax.cgst ?? 0, data.currency ?? 'INR'));
           } else if (data.tax.igst) {
-            doc.text('IGST (18%):', rightAlignX, doc.y, { width: 100, align: 'right' });
-            doc.text(formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'), 450, doc.y, {
-              width: 100,
-              align: 'right',
-            });
-            doc.moveDown();
+            totalsRow('IGST (18%):', formatCurrency(data.tax.igst ?? 0, data.currency ?? 'INR'));
           }
         }
 
-        doc.font('Helvetica-Bold').fontSize(12);
-        doc.text('Total:', rightAlignX, doc.y, { width: 100, align: 'right' });
-        doc.text(formatCurrency(data.total, data.currency ?? 'INR'), 450, doc.y, {
-          width: 100,
-          align: 'right',
-        });
-        doc.font('Helvetica').fontSize(10);
-        doc.moveDown(1.5);
+        doc.font('Helvetica-Bold').fontSize(11);
+        totalsRow('Total:', formatCurrency(data.total, data.currency ?? 'INR'));
+        const totalsEndY = doc.y + 2;
 
-        // Amount in words
+        // Box around subtotal/tax/total
+        doc
+          .rect(
+            totalsBoxLeft - 4,
+            totalsStartY - 2,
+            totalsBoxRight - totalsBoxLeft + 8,
+            totalsEndY - totalsStartY + 4,
+          )
+          .lineWidth(0.7)
+          .strokeColor('#000000')
+          .stroke();
+
+        doc.font('Helvetica').fontSize(10);
+        doc.moveDown(1.2);
+
+        // Amount in words – dedicated boxed block
         const totalInWords = amountToWords(data.total, data.currency ?? 'INR');
         const taxTotal = data.tax?.total ?? 0;
         const taxInWords = taxTotal > 0 ? amountToWords(taxTotal, data.currency ?? 'INR') : '';
 
-        doc.font('Helvetica-Bold').text('Amount Chargeable (in words):', {
-          continued: false,
+        const wordsBoxLeft = margin - 2;
+        const wordsBoxRight = doc.page.width - margin + 2;
+        const wordsStartY = doc.y;
+
+        doc.font('Helvetica-Bold').text('Amount Chargeable (in words):', wordsBoxLeft + 4, wordsStartY, {
+          width: 200,
         });
         doc.font('Helvetica').text(
           `${data.currency ?? 'INR'} ${totalInWords}`,
-          { indent: 20 },
+          wordsBoxLeft + 4,
+          wordsStartY + 12,
+          {
+            width: wordsBoxRight - wordsBoxLeft - 8,
+          },
         );
-        doc.moveDown(0.7);
+
+        let wordsEndY = doc.y + 4;
 
         if (taxInWords) {
-          doc.font('Helvetica-Bold').text('Tax Amount (in words):', { continued: false });
+          const taxLabelY = wordsEndY + 2;
+          doc.font('Helvetica-Bold').text(
+            'Tax Amount (in words):',
+            wordsBoxLeft + 4,
+            taxLabelY,
+            { width: 200 },
+          );
           doc.font('Helvetica').text(
             `${data.currency ?? 'INR'} ${taxInWords}`,
-            { indent: 20 },
+            wordsBoxLeft + 4,
+            taxLabelY + 12,
+            {
+              width: wordsBoxRight - wordsBoxLeft - 8,
+            },
           );
-          doc.moveDown(1);
+          wordsEndY = doc.y + 4;
         }
+
+        doc
+          .rect(
+            wordsBoxLeft,
+            wordsStartY - 2,
+            wordsBoxRight - wordsBoxLeft,
+            wordsEndY - wordsStartY + 4,
+          )
+          .lineWidth(0.7)
+          .strokeColor('#000000')
+          .stroke();
+
+        doc.moveDown(1.2);
 
         // Tax summary table by HSN (for domestic documents with GST)
         if (data.tax && taxTotal > 0 && data.isDomestic) {
@@ -959,22 +1079,49 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
         }
       }
 
-      // Declaration and computer-generated note
-      doc.moveDown(1);
+      // Declaration block – boxed, with separate disclaimer below
+      const declBoxLeft = margin - 2;
+      const declBoxRight = doc.page.width - margin + 2;
+      const declStartY = doc.y;
+
       doc.font('Helvetica-Bold').fontSize(9).text(
         'Declaration:',
-        { continued: false },
+        declBoxLeft + 4,
+        declStartY,
       );
       doc.font('Helvetica').text(
         'We declare that this document shows the actual price of the goods described and that all particulars are true and correct.',
-        { indent: 20 },
+        declBoxLeft + 4,
+        declStartY + 12,
+        {
+          width: declBoxRight - declBoxLeft - 8,
+        },
       );
-      doc.moveDown(0.8);
 
-      doc.font('Helvetica-Oblique')
+      const declEndY = doc.y + 4;
+      doc
+        .rect(
+          declBoxLeft,
+          declStartY - 2,
+          declBoxRight - declBoxLeft,
+          declEndY - declStartY + 4,
+        )
+        .lineWidth(0.7)
+        .strokeColor('#000000')
+        .stroke();
+
+      doc.moveDown(1);
+
+      // Disclaimer centered near bottom section for readability
+      doc
+        .font('Helvetica-Oblique')
         .fontSize(8)
+        .fillColor('#333333')
         .text(
           'This is a computer-generated document and does not require any signature or stamp.',
+          margin,
+          doc.y,
+          { width: doc.page.width - margin * 2, align: 'center' },
         );
 
       // Finalize the PDF - ensure we call end() to trigger the 'end' event
@@ -1024,14 +1171,37 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 function formatCurrency(amount: number, currency: string = 'INR'): string {
   // Validate and sanitize amount
   const numAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
-  
+
+  // IMPORTANT:
+  // The standard Helvetica font metrics used by PDFKit in AFM mode do NOT
+  // include a proper glyph for the Unicode Rupee symbol (₹). When we print
+  // that character, many viewers render it as a superscript "1", which is
+  // exactly the artefact you're seeing before every amount.
+  //
+  // To avoid this, we do NOT use "₹". Instead we prefix with "INR" or "Rs.".
   try {
+    const formatted =
+      currency === 'INR'
+        ? numAmount.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : numAmount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
     if (currency === 'INR') {
-      return `₹${numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      // Use a plain text prefix that all fonts support; no special glyphs.
+      return `INR ${formatted}`;
     }
-    return `${currency} ${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return `${currency} ${formatted}`;
   } catch (e) {
     // Fallback if locale formatting fails
+    if (currency === 'INR') {
+      return `INR ${numAmount.toFixed(2)}`;
+    }
     return `${currency} ${numAmount.toFixed(2)}`;
   }
 }
