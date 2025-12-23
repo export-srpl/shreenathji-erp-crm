@@ -304,6 +304,7 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       });
 
       const brandColor = '#8b0304';
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
 
       const drawHeader = () => {
         console.log('[PDF] Drawing header');
@@ -313,36 +314,60 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
         doc.save();
 
-        // Company name - centered, bold, and large (no logo)
+        // Layout: logo on the left, company block on the right, full-width divider underneath.
+        let textStartX = margin;
+        const logoMaxWidth = 80;
+        const logoMaxHeight = 40;
+        const companyBlockTop = headerTop;
+
+        // Logo (if available)
+        try {
+          if (fs.existsSync(logoPath)) {
+            doc.image(logoPath, margin, headerTop, {
+              fit: [logoMaxWidth, logoMaxHeight],
+              align: 'left',
+              valign: 'top',
+            });
+            textStartX = margin + logoMaxWidth + 12;
+          }
+        } catch (logoErr) {
+          console.warn('[PDF] Failed to render logo:', logoErr);
+          textStartX = margin;
+        }
+
+        const textWidth = pageWidth - textStartX - margin;
+
+        // Company name and details
         doc.fillColor(brandColor);
-        doc.font('Helvetica-Bold').fontSize(22);
+        doc.font('Helvetica-Bold').fontSize(16);
         const companyName = 'SHREENATHJI RASAYAN PVT LTD';
-        doc.text(companyName, margin, headerTop, {
-          width: pageWidth - margin * 2,
-          align: 'center',
+        doc.text(companyName, textStartX, companyBlockTop, {
+          width: textWidth,
+          align: 'left',
         });
 
-        // Company details below the name
         doc.font('Helvetica').fontSize(8);
         const headerDetails = [
           'CIN No.: U24110GJ2006PTC049339',
           'Corporate Office: 202, Neptune Harmony, Next to Ashok Vatika BRTS Stop, Iscon–Ambali Road, Ahmedabad – 380058',
           'Mobile: +91 87358 88479',
           'Email: info@shreenathjirasayan.com',
+          'An ISO 9001, 14001, 45001 & 27001 Certified Company.',
         ];
-        let detailY = headerTop + 25;
+        let detailY = companyBlockTop + 14;
         headerDetails.forEach((line) => {
-          doc.text(String(line ?? ''), margin, detailY, {
-            width: pageWidth - margin * 2,
-            align: 'center',
+          doc.text(String(line ?? ''), textStartX, detailY, {
+            width: textWidth,
+            align: 'left',
           });
-          detailY = doc.y;
+          detailY = doc.y + 1;
         });
 
-        // Thin divider
-        doc.moveTo(margin, headerTop + 55)
-          .lineTo(pageWidth - margin, headerTop + 55)
-          .lineWidth(0.5)
+        // Thin divider under the full header
+        const dividerY = Math.max(headerTop + logoMaxHeight, detailY + 4, headerTop + 45);
+        doc.moveTo(margin, dividerY)
+          .lineTo(pageWidth - margin, dividerY)
+          .lineWidth(0.7)
           .strokeColor(brandColor)
           .stroke();
 
@@ -350,7 +375,7 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
 
         // Reset content Y just below header
         doc.moveDown();
-        doc.y = headerTop + 65;
+        doc.y = dividerY + 10;
       };
 
       const drawFooter = () => {
@@ -401,7 +426,19 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
       doc.moveDown();
       doc.fillColor('#000000');
       doc.font('Helvetica-Bold').fontSize(14);
-      doc.text(String(data.documentType ?? 'Document'), { align: 'left' });
+      doc.text(String(data.documentType ?? 'Document'), { align: 'center' });
+
+      // Computer-generated note near title for clarity
+      doc.moveDown(0.2);
+      doc.font('Helvetica-Oblique')
+        .fontSize(8)
+        .fillColor('#555555')
+        .text(
+          'This is a computer-generated document and does not require any signature or stamp.',
+          { align: 'center' },
+        );
+
+      doc.fillColor('#000000').font('Helvetica').fontSize(9);
 
       // Meta info block (Document No/Date, PO details, Destination, Inco/Payment)
       doc.moveDown(0.5);
@@ -774,6 +811,133 @@ export async function generateDocumentPDF(data: PDFDocumentData): Promise<Buffer
             { indent: 20 },
           );
           doc.moveDown(1);
+        }
+
+        // Tax summary table by HSN (for domestic documents with GST)
+        if (data.tax && taxTotal > 0 && data.isDomestic) {
+          try {
+            const effectiveTaxRate =
+              data.subtotal > 0 ? taxTotal / data.subtotal : 0;
+            const ratePercent = Math.round(effectiveTaxRate * 100);
+
+            const hsnSummary: Record<
+              string,
+              { taxable: number; taxAmount: number }
+            > = {};
+
+            data.items.forEach((item) => {
+              const key = (item.hsnCode || 'N/A').toString();
+              const taxable =
+                typeof item.amount === 'number' && !isNaN(item.amount)
+                  ? item.amount
+                  : 0;
+              const taxAmount = taxable * effectiveTaxRate;
+
+              if (!hsnSummary[key]) {
+                hsnSummary[key] = { taxable: 0, taxAmount: 0 };
+              }
+              hsnSummary[key].taxable += taxable;
+              hsnSummary[key].taxAmount += taxAmount;
+            });
+
+            doc.moveDown(0.5);
+            doc.font('Helvetica-Bold').text('Tax Summary:', { continued: false });
+            doc.moveDown(0.2);
+
+            const tableLeftX = 40;
+            const colHsnWidth = 120;
+            const colTaxableWidth = 120;
+            const colRateWidth = 80;
+            const colTaxAmtWidth = 120;
+            const headerY = doc.y;
+
+            // Header row
+            doc.font('Helvetica-Bold');
+            doc.text('HSN/SAC', tableLeftX, headerY, {
+              width: colHsnWidth,
+              align: 'center',
+            });
+            doc.text('Taxable Value', tableLeftX + colHsnWidth, headerY, {
+              width: colTaxableWidth,
+              align: 'right',
+            });
+            doc.text('Tax Rate', tableLeftX + colHsnWidth + colTaxableWidth, headerY, {
+              width: colRateWidth,
+              align: 'center',
+            });
+            doc.text(
+              'Tax Amount',
+              tableLeftX + colHsnWidth + colTaxableWidth + colRateWidth,
+              headerY,
+              {
+                width: colTaxAmtWidth,
+                align: 'right',
+              },
+            );
+
+            let rowY = headerY + 14;
+            doc.font('Helvetica');
+
+            Object.entries(hsnSummary).forEach(([hsn, summary]) => {
+              doc.text(hsn, tableLeftX, rowY, {
+                width: colHsnWidth,
+                align: 'center',
+              });
+              doc.text(
+                formatCurrency(summary.taxable, data.currency ?? 'INR'),
+                tableLeftX + colHsnWidth,
+                rowY,
+                {
+                  width: colTaxableWidth,
+                  align: 'right',
+                },
+              );
+              doc.text(
+                `${ratePercent}%`,
+                tableLeftX + colHsnWidth + colTaxableWidth,
+                rowY,
+                {
+                  width: colRateWidth,
+                  align: 'center',
+                },
+              );
+              doc.text(
+                formatCurrency(summary.taxAmount, data.currency ?? 'INR'),
+                tableLeftX + colHsnWidth + colTaxableWidth + colRateWidth,
+                rowY,
+                {
+                  width: colTaxAmtWidth,
+                  align: 'right',
+                },
+              );
+
+              // Row separator
+              doc
+                .moveTo(tableLeftX, rowY + 12)
+                .lineTo(
+                  tableLeftX +
+                    colHsnWidth +
+                    colTaxableWidth +
+                    colRateWidth +
+                    colTaxAmtWidth,
+                  rowY + 12,
+                )
+                .stroke();
+
+              rowY += 16;
+            });
+
+            // Outer border for tax summary table
+            const tableWidth =
+              colHsnWidth + colTaxableWidth + colRateWidth + colTaxAmtWidth;
+            doc
+              .rect(tableLeftX, headerY - 2, tableWidth, rowY - headerY + 4)
+              .stroke();
+
+            doc.moveDown(1);
+          } catch (taxSummaryErr) {
+            console.error('[PDF] Error rendering tax summary table:', taxSummaryErr);
+          }
         }
       } catch (tableError: any) {
         console.error('[PDF] Error rendering table/totals:', tableError);
