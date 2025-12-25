@@ -100,17 +100,35 @@ export default function LeadFormsPage() {
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to create form');
+        let errorMessage = 'Failed to create form';
+        try {
+          const error = await res.json();
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status-based messages
+          if (res.status === 401) {
+            errorMessage = 'Unauthorized. Please log in again.';
+          } else if (res.status === 403) {
+            errorMessage = 'Access denied. You do not have permission to create forms.';
+          } else if (res.status >= 500) {
+            errorMessage = 'Server error. Please try again later.';
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const createdForm = await res.json();
+      
+      // Close dialog and reset form only on success
+      setCreateDialogOpen(false);
+      setNewForm({ name: '', description: '' });
+      
       toast({
         title: 'Form Created',
         description: 'Your lead capture form has been created successfully.',
       });
-      setCreateDialogOpen(false);
-      setNewForm({ name: '', description: '' });
+      
+      // Refresh the forms list
       fetchForms();
     } catch (error) {
       console.error('Failed to create form:', error);
@@ -119,6 +137,7 @@ export default function LeadFormsPage() {
         title: 'Failed to create form',
         description: error instanceof Error ? error.message : 'Please try again later.',
       });
+      // Don't close dialog on error so user can retry
     } finally {
       setIsCreating(false);
     }

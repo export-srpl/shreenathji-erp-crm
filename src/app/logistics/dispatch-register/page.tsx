@@ -71,6 +71,7 @@ export default function DispatchRegisterPage() {
     new Date().toISOString().split('T')[0]
   );
   const [includeAnomalies, setIncludeAnomalies] = useState(true);
+  const [exceptionType, setExceptionType] = useState<string>('all');
   const [metadata, setMetadata] = useState<{
     asOfDate: string;
     totalEntries: number;
@@ -84,6 +85,7 @@ export default function DispatchRegisterPage() {
       const params = new URLSearchParams({
         asOfDate: asOfDate,
         includeAnomalies: includeAnomalies.toString(),
+        ...(exceptionType !== 'all' && { exceptionType }),
       });
       const res = await fetch(`/api/dispatch-register?${params}`);
       if (!res.ok) {
@@ -111,7 +113,7 @@ export default function DispatchRegisterPage() {
 
   useEffect(() => {
     fetchDispatchData();
-  }, [asOfDate, includeAnomalies]);
+  }, [asOfDate, includeAnomalies, exceptionType]);
 
   const handleExport = async () => {
     try {
@@ -189,6 +191,23 @@ export default function DispatchRegisterPage() {
                   <SelectItem value="no">No (Hide)</SelectItem>
                 </SelectContent>
               </Select>
+              {includeAnomalies && (
+                <Select
+                  value={exceptionType}
+                  onValueChange={setExceptionType}
+                  className="mt-2"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by exception type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Exceptions</SelectItem>
+                    <SelectItem value="over_dispatch">Over-Dispatch Only</SelectItem>
+                    <SelectItem value="delayed_dispatch">Delayed Dispatch Only</SelectItem>
+                    <SelectItem value="excessive_partial">Excessive Partial Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
                 Include or exclude over-dispatched entries
               </p>

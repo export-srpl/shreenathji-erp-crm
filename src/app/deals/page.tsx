@@ -28,7 +28,10 @@ export default function DealsPage() {
             Visualize and manage your sales opportunities.
           </p>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)}>
+        <Button 
+          onClick={() => setAddDialogOpen(true)}
+          data-testid="add-new-deal-button"
+        >
           <PlusCircle className="mr-2" />
           Add New Deal
         </Button>

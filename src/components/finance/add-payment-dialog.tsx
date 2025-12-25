@@ -40,7 +40,7 @@ export function AddPaymentDialog({ open, onOpenChange, onPaymentAdded }: AddPaym
   const { user } = useUser();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | undefined>(undefined);
   const [paymentDate, setPaymentDate] = useState('');
   const [amount, setAmount] = useState<number | string>('');
   const [paymentMethod, setPaymentMethod] = useState<Payment['paymentMethod'] | ''>('');
@@ -126,7 +126,7 @@ export function AddPaymentDialog({ open, onOpenChange, onPaymentAdded }: AddPaym
                     onSelectCustomer={(customerId) => {
                         const customer = customers?.find(c => c.id === customerId);
                         setSelectedCustomer(customer || null);
-                        setSelectedInvoiceId(''); // Reset invoice selection
+                        setSelectedInvoiceId(undefined); // Reset invoice selection
                     }}
                     value={selectedCustomer?.id || ''}
                     disabled={isSubmitting}
@@ -134,7 +134,7 @@ export function AddPaymentDialog({ open, onOpenChange, onPaymentAdded }: AddPaym
             </div>
             <div className="space-y-2">
                 <Label htmlFor="invoice">Invoice</Label>
-                <Select onValueChange={setSelectedInvoiceId} value={selectedInvoiceId} disabled={!selectedCustomer || isLoadingInvoices || isSubmitting}>
+                <Select onValueChange={(v) => setSelectedInvoiceId(v || undefined)} value={selectedInvoiceId || undefined} disabled={!selectedCustomer || isLoadingInvoices || isSubmitting}>
                     <SelectTrigger id="invoice">
                         <SelectValue placeholder={isLoadingInvoices ? "Loading invoices..." : "Select an invoice"} />
                     </SelectTrigger>

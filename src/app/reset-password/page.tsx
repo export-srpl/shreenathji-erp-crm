@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 export default function RequestPasswordResetPage() {
   const { toast } = useToast();
@@ -77,10 +78,23 @@ export default function RequestPasswordResetPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="name@shreenathjirasayan.com"
+                data-testid="reset-password-email-input"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Sending…' : 'Send reset link'}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting}
+              data-testid="reset-password-submit-button"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                'Send reset link'
+              )}
             </Button>
           </form>
         </CardContent>

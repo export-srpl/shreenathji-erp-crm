@@ -3,6 +3,7 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { logActivity } from '@/lib/activity-logger';
+import { capturePriceHistory } from '@/lib/price-history';
 
 // GET /api/invoices - list invoices with customer and items
 export async function GET() {
@@ -72,6 +73,23 @@ export async function POST(req: Request) {
       itemCount: invoice.items.length,
     },
     performedById: auth.userId || null,
+  });
+
+  // Capture price history
+  await capturePriceHistory({
+    prisma,
+    documentType: 'Invoice',
+    documentId: invoice.id,
+    documentNo: invoice.invoiceNumber,
+    documentDate: invoice.issueDate,
+    customerId: invoice.customerId,
+    items: invoice.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountPct: item.discountPct,
+    })),
+    currency: invoice.customer.currency || 'INR',
   });
 
   // Invalidate dispatch register cache

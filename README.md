@@ -91,3 +91,23 @@ You are now all set up! You can visit `http://localhost:3000` in your browser an
 -   `npm run build`: Builds the application for production.
 -   `npm run start`: Starts a production server.
 -   `npm run lint`: Lints the codebase for errors.
+-   `npm run db:seed`: Seeds the database with test data (users, products, customers, leads). **Run this before running automated tests.**
+
+## Test Data Seeding
+
+Before running automated tests or exploring the application, you should seed the database with test data:
+
+```bash
+npm run db:seed
+```
+
+This will create:
+- **3 test users** with different roles:
+  - `admin@shreenathjirasayan.com` / `admin123` (Admin)
+  - `sales@shreenathjirasayan.com` / `sales123` (Sales)
+  - `finance@shreenathjirasayan.com` / `finance123` (Finance)
+- **8 sample products** (SHREEBOND series)
+- **5 sample customers** (domestic and international)
+- **10 sample leads** with various statuses
+
+**Note:** The seed script uses `upsert` operations, so running it multiple times is safe and will update existing records.

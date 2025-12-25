@@ -6,6 +6,8 @@ import { leadSchema, validateInput } from '@/lib/validation';
 import { generateSRPLId } from '@/lib/srpl-id-generator';
 import { logActivity } from '@/lib/activity-logger';
 import { runAutomationRules } from '@/lib/automation-engine';
+import { updateLeadScore } from '@/lib/lead-scoring';
+import { trackStageChange } from '@/lib/lead-aging';
 import { getVisibilityFilter, hasPermission, getFieldPermissions, applyFieldPermissions } from '@/lib/rbac';
 
 // GET /api/leads - list leads
@@ -136,6 +138,12 @@ export async function GET(req: Request) {
           followUpDate: true,
           createdAt: true,
           ownerId: true,
+          // Phase 2: Lead Scoring & Aging
+          score: true,
+          temperature: true,
+          lastActivityDate: true,
+          winLossReasonId: true,
+          wonLostAt: true,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -340,6 +348,18 @@ export async function POST(req: Request) {
     },
   });
 
+  // Initialize lastActivityDate and track initial stage
+  const initialStatus = validatedData.status || 'New';
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: {
+      lastActivityDate: new Date(),
+    },
+  });
+
+  // Track initial stage aging
+  await trackStageChange(prisma, lead.id, body.statusId || null, initialStatus);
+
   // Log activity: lead created
   await logActivity({
     prisma,
@@ -355,6 +375,9 @@ export async function POST(req: Request) {
     performedById: auth.userId,
   });
 
+  // Calculate initial lead score (async, best-effort)
+  await updateLeadScore(prisma, lead.id);
+
   // Run workflow automation for lead creation
   await runAutomationRules({
     prisma,
@@ -367,7 +390,12 @@ export async function POST(req: Request) {
     performedById: auth.userId,
   });
 
-  return NextResponse.json(lead, { status: 201 });
+  // Fetch lead with score
+  const leadWithScore = await prisma.lead.findUnique({
+    where: { id: lead.id },
+  });
+
+  return NextResponse.json(leadWithScore || lead, { status: 201 });
 }
 
 

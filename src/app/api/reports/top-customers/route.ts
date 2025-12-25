@@ -4,16 +4,27 @@ import { getPrismaClient } from '@/lib/prisma';
 /**
  * GET /api/reports/top-customers
  * Returns top N customers by total invoice amount
- * Query params: limit (default: 10)
+ * Query params: limit (default: 10), startDate, endDate (optional date range filter)
  */
 export async function GET(req: Request) {
   const searchParams = new URL(req.url).searchParams;
   const limit = parseInt(searchParams.get('limit') || '10', 10);
 
   try {
+    // Build date filter if provided
+    const invoiceDateFilter: any = {};
+    if (searchParams.get('startDate') && searchParams.get('endDate')) {
+      const startDate = new Date(searchParams.get('startDate')!);
+      const endDate = new Date(searchParams.get('endDate')!);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      invoiceDateFilter.issueDate = { gte: startDate, lte: endDate };
+    }
+
     // Get all invoices with customer and items
     const prisma = await getPrismaClient();
     const invoices = await prisma.invoice.findMany({
+      where: invoiceDateFilter,
       include: {
         customer: true,
         items: true,

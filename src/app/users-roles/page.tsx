@@ -50,8 +50,8 @@ export default function UsersRolesPage() {
   }, [toast]);
   
   const handleSaveUser = async (user: User | Omit<User, 'id' | 'avatarUrl' | 'status'>) => {
+    const isEdit = 'id' in user;
     try {
-      const isEdit = 'id' in user;
       const url = isEdit ? `/api/users/${user.id}` : '/api/users';
       const method = isEdit ? 'PATCH' : 'POST';
 

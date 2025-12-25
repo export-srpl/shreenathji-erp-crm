@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Shield, AlertTriangle, Activity } from 'lucide-react';
+import { LoginActivityTable } from '@/components/security/login-activity-table';
 
 interface SecurityStats {
   period: string;
@@ -219,8 +220,187 @@ export default function SecurityOverviewPage() {
           </Card>
         </div>
       )}
+
+      {/* Security Alerts Section */}
+      <div className="mt-8">
+        <SecurityAlertsSection days={days} />
+      </div>
+
+      {/* Login Activity Table */}
+      <div className="mt-8">
+        <LoginActivityTable />
+      </div>
     </div>
   );
 }
+
+interface SecurityAlert {
+  id: string;
+  type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+  userId: string | null;
+  user: { id: string; email: string; name: string | null } | null;
+  ipAddress: string | null;
+  timestamp: string;
+  details: any;
+}
+
+function SecurityAlertsSection({ days }: { days: string }) {
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/security/alerts?days=${days}`);
+        if (!res.ok) throw new Error('Failed to fetch alerts');
+        const data = await res.json();
+        setAlerts(data);
+      } catch (error) {
+        console.error('Failed to fetch security alerts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAlerts();
+    // Refresh alerts every 30 seconds
+    const interval = setInterval(fetchAlerts, 30000);
+    return () => clearInterval(interval);
+  }, [days]);
+
+  const criticalAlerts = alerts.filter(a => a.severity === 'critical');
+  const highAlerts = alerts.filter(a => a.severity === 'high');
+  const mediumAlerts = alerts.filter(a => a.severity === 'medium');
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Security Alerts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5" />
+          Security Alerts
+        </CardTitle>
+        <CardDescription>
+          Recent security events and suspicious activity detected in the last {days} days.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {alerts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Shield className="h-12 w-12 mx-auto mb-4 text-green-500" />
+            <p className="font-medium">No security alerts</p>
+            <p className="text-sm">No suspicious activity detected in the selected period.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {criticalAlerts.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-red-600 mb-2">
+                  Critical Alerts ({criticalAlerts.length})
+                </h3>
+                <div className="space-y-2">
+                  {criticalAlerts.slice(0, 5).map((alert) => (
+                    <Alert key={alert.id} variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium">{alert.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {alert.ipAddress && `IP: ${alert.ipAddress}`}
+                              {alert.user && ` • User: ${alert.user.email}`}
+                              {` • ${new Date(alert.timestamp).toLocaleString()}`}
+                            </p>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {highAlerts.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-orange-600 mb-2">
+                  High Priority Alerts ({highAlerts.length})
+                </h3>
+                <div className="space-y-2">
+                  {highAlerts.slice(0, 5).map((alert) => (
+                    <Alert key={alert.id} className="border-orange-500">
+                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      <AlertDescription>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium">{alert.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {alert.ipAddress && `IP: ${alert.ipAddress}`}
+                              {alert.user && ` • User: ${alert.user.email}`}
+                              {` • ${new Date(alert.timestamp).toLocaleString()}`}
+                            </p>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mediumAlerts.length > 0 && criticalAlerts.length === 0 && highAlerts.length === 0 && (
+              <div className="space-y-2">
+                {mediumAlerts.slice(0, 10).map((alert) => (
+                  <Alert key={alert.id} className="border-yellow-500">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    <AlertDescription>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium">{alert.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {alert.ipAddress && `IP: ${alert.ipAddress}`}
+                            {alert.user && ` • User: ${alert.user.email}`}
+                            {` • ${new Date(alert.timestamp).toLocaleString()}`}
+                          </p>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ))}
+              </div>
+            )}
+
+            {alerts.length > 10 && (
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Showing {Math.min(10, alerts.length)} of {alerts.length} alerts. 
+                Review audit logs for complete history.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 

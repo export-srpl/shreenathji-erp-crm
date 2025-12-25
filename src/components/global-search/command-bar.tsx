@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, FileText, Users, Package, ShoppingCart, Receipt, Plus, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -188,6 +188,10 @@ export function CommandBar({ open, onOpenChange }: CommandBarProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 overflow-hidden max-w-2xl">
+        <DialogTitle className="sr-only">Global Search</DialogTitle>
+        <DialogDescription className="sr-only">
+          Search across all entities including leads, customers, products, deals, quotes, and invoices.
+        </DialogDescription>
         <Command onKeyDown={handleKeyDown} className="rounded-lg border-none">
           <CommandInput
             ref={inputRef}

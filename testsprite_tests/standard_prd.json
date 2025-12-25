@@ -1,62 +1,438 @@
 {
-  "project_name": "Shreenathji ERP+CRM System",
-  "version": "1.0.0",
-  "description": "A comprehensive ERP and CRM application for managing sales, customers, inventory, and business operations",
-  "objectives": [
-    "Provide a unified platform for sales management",
-    "Enable efficient customer and product management",
-    "Support document management and compliance",
-    "Provide analytics and reporting capabilities",
-    "Ensure secure user authentication and authorization"
+  "meta": {
+    "project": "Shreenathji ERP+CRM System",
+    "date": "2025-12-22",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Shreenathji ERP+CRM System is a comprehensive enterprise resource planning and customer relationship management application tailored for Shreenathji Rasayan Pvt. Ltd. It integrates sales, customer management, inventory, quality control, and AI-powered analytics into a single modern platform built with Next.js, Firebase, and Genkit AI technology. The system supports live data synchronization, role-based access control, and a responsive UI for desktop and mobile users.",
+  "core_goals": [
+    "Provide end-to-end management of sales pipeline, including leads, deals, and sales documents to improve sales team efficiency.",
+    "Centralize customer and product data to facilitate seamless access and updates across the organization.",
+    "Leverage AI capabilities to automate the generation of Certificates of Analysis to enhance quality control processes.",
+    "Enable robust role-based access control and security features including 2FA, session management, and audit logging.",
+    "Offer real-time data synchronization using Firestore ensuring updates are instantly reflected across users.",
+    "Support workflow configuration and automation to streamline business processes and reduce manual tasks.",
+    "Provide comprehensive reporting and analytics for sales performance, product demand, and customer activity.",
+    "Ensure high data quality through duplicate detection and hygiene mechanisms.",
+    "Deliver a modern and intuitive user interface supporting responsive design for desktop and mobile devices."
   ],
-  "features": [
-    {
-      "id": "F001",
-      "name": "User Authentication",
-      "description": "Secure login, logout, 2FA, session management",
-      "priority": "high"
-    },
-    {
-      "id": "F002",
-      "name": "Lead Management",
-      "description": "Create, view, update, and manage sales leads",
-      "priority": "high"
-    },
-    {
-      "id": "F003",
-      "name": "Deal Pipeline",
-      "description": "Kanban board for managing deals through sales stages",
-      "priority": "high"
-    },
-    {
-      "id": "F004",
-      "name": "Customer/Company Management",
-      "description": "Manage customer information, contacts, and relationships",
-      "priority": "high"
-    },
-    {
-      "id": "F005",
-      "name": "Product Management",
-      "description": "Manage product catalog and inventory",
-      "priority": "medium"
-    },
-    {
-      "id": "F006",
-      "name": "Document Management",
-      "description": "Upload, store, and manage documents with versioning",
-      "priority": "medium"
-    },
-    {
-      "id": "F007",
-      "name": "Reports & Analytics",
-      "description": "Generate reports and analytics for business insights",
-      "priority": "medium"
-    }
+  "key_features": [
+    "Authentication & Authorization with 2FA, role-based access control, password reset, and session management.",
+    "Lead Management including lifecycle management, Kanban boards, tables, import functionality, and conversion to deals and quotes.",
+    "Customer & Contact Management with CRUD operations, import, and detailed views.",
+    "Product & Inventory Management with catalog management, import support, and inventory tracking.",
+    "Sales Documents management covering Quotes, Proforma Invoices, Sales Orders, and Invoices with PDF generation and conversion workflows.",
+    "Dynamic Lead Capture Forms builder allowing public submissions and form customizations.",
+    "Comprehensive Reporting & Analytics covering sales, product performance, customer insights, and revenue projections.",
+    "Workflow Automation engine for rule-based triggers on leads, deals, and other entities.",
+    "Security Features including login activity tracking, audit logs, IP geolocation, and security monitoring.",
+    "Activity Timeline capturing unified change logs across all entities in the system.",
+    "User & Role Management with full role and permission administration capabilities.",
+    "Global Search functionality providing universal search across all entities through a command bar interface.",
+    "Document Management with versioning, virus scanning, and controlled access to stored documents.",
+    "Data Hygiene tools for duplicate detection and data quality management.",
+    "Deals Pipeline visualization and management via Kanban boards and pipeline tracking.",
+    "Dispatch Register for logistics tracking and management.",
+    "Payment Tracking and management modules integrated with sales and finance data.",
+    "Sequential SRPL ID generation system for all entities ensuring unique identifiers.",
+    "Workflow Configuration allowing customizable stages, sources, and labeling to fit business processes.",
+    "UI and Layout Components built on Radix UI and Tailwind CSS for consistent and reusable design patterns."
   ],
-  "technical_requirements": {
-    "frontend": "Next.js 15, React 18, TypeScript",
-    "backend": "Next.js API Routes, Prisma ORM",
-    "database": "PostgreSQL",
-    "authentication": "Cookie-based sessions"
+  "user_flow_summary": [
+    "Users authenticate through a secure login process including optional two-factor authentication for heightened security.",
+    "Sales teams manage leads by capturing new prospects via dynamic forms or manual entry, progressing them through predefined sales stages using Kanban boards and table views.",
+    "Leads can be converted into deals and sales documents like quotes and invoices, managed within their respective modules with options to generate PDFs and track document status.",
+    "Customer service and sales teams manage customer and contact information, importing data when needed and updating records through detailed pages.",
+    "Product managers maintain product catalogs and track inventory levels, importing product data as necessary.",
+    "Users can configure workflows, automation rules, and access controls to tailor the system behavior to company policies and sales processes.",
+    "Managers and executives access comprehensive reports and dashboards to monitor performance metrics, sales cycles, and pipeline health.",
+    "The activity timeline provides a chronological view of all significant changes and actions across the system, aiding transparency and auditing.",
+    "Security administrators monitor login activity, session logs, and audit trails to ensure compliance and detect suspicious activity.",
+    "Users leverage the global search feature to quickly locate records across leads, customers, deals, products, and documents.",
+    "Logistics teams use the dispatch register to track and manage shipment operations, while finance teams manage incoming payments and reconcile transactions."
+  ],
+  "validation_criteria": [
+    "All authentication flows must enforce strong security best practices including 2FA, session timeout, and RBAC.",
+    "Lead and customer data manipulation features must correctly handle CRUD operations and data imports without data loss or duplication.",
+    "Sales document workflows must accurately generate and convert documents with correct numbering and PDF outputs.",
+    "Dynamic lead capture forms must support creation, submission, and public accessibility without errors.",
+    "Reporting modules must produce accurate, relevant analytics reflecting up-to-date data filtered by appropriate criteria.",
+    "Workflow automation rules must trigger expected actions reliably based on defined triggers and conditions.",
+    "Security features must log activity comprehensively and provide actionable alerts for unusual behavior or policy violations.",
+    "UI components and layouts must be fully responsive and maintain usability across devices and screen sizes.",
+    "Global search must return accurate results quickly and support intuitive command bar interactions.",
+    "Data hygiene processes must detect duplicates and stale records without producing false positives.",
+    "Integration between modules (sales, customers, inventory, finance) must maintain data consistency and integrity.",
+    "Document management must securely store, version, and scan uploaded files with permissions enforced correctly."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "Next.js 15",
+      "React 18",
+      "Prisma ORM",
+      "PostgreSQL",
+      "Firebase (Auth, Firestore)",
+      "Tailwind CSS",
+      "Radix UI",
+      "PDFKit",
+      "Redis",
+      "Zod",
+      "bcryptjs"
+    ],
+    "features": [
+      {
+        "name": "Authentication & Authorization",
+        "description": "Complete authentication system with 2FA, session management, RBAC, and role-based permissions",
+        "files": [
+          "src/app/api/auth/login/route.ts",
+          "src/app/api/auth/login/complete-2fa/route.ts",
+          "src/app/api/auth/logout/route.ts",
+          "src/app/api/auth/2fa/generate/route.ts",
+          "src/app/api/auth/2fa/verify/route.ts",
+          "src/app/api/auth/2fa/disable/route.ts",
+          "src/app/api/auth/2fa/check/route.ts",
+          "src/app/api/auth/reset-password/route.ts",
+          "src/app/api/auth/request-password-reset/route.ts",
+          "src/lib/auth.ts",
+          "src/lib/auth-utils.ts",
+          "src/lib/rbac.ts",
+          "src/app/login/page.tsx",
+          "src/app/login/verify-2fa/page.tsx",
+          "src/app/security/2fa/page.tsx"
+        ]
+      },
+      {
+        "name": "Lead Management",
+        "description": "Complete lead lifecycle management with forms, kanban board, table view, import, and conversion to deals/quotes",
+        "files": [
+          "src/app/sales/leads/page.tsx",
+          "src/app/sales/leads/add/page.tsx",
+          "src/app/api/leads/route.ts",
+          "src/app/api/leads/[id]/route.ts",
+          "src/app/api/leads/[id]/status/route.ts",
+          "src/app/api/leads/import/route.ts",
+          "src/components/leads/leads-table.tsx",
+          "src/components/leads/kanban-board.tsx",
+          "src/components/leads/import-leads-dialog.tsx"
+        ]
+      },
+      {
+        "name": "Customer Management",
+        "description": "Customer/company management with CRUD operations, import, and contact management",
+        "files": [
+          "src/app/customers/page.tsx",
+          "src/app/customers/add/page.tsx",
+          "src/app/customers/[id]/page.tsx",
+          "src/app/api/customers/route.ts",
+          "src/app/api/customers/[id]/route.ts",
+          "src/app/api/customers/import/route.ts",
+          "src/components/customers/customers-grid.tsx",
+          "src/components/customers/import-customers-dialog.tsx"
+        ]
+      },
+      {
+        "name": "Sales Documents",
+        "description": "Quote, Proforma Invoice, Sales Order, and Invoice management with PDF generation and document conversion workflow",
+        "files": [
+          "src/app/sales/quote/page.tsx",
+          "src/app/sales/quote/create/page.tsx",
+          "src/app/sales/quote/[id]/page.tsx",
+          "src/app/sales/proforma-invoice/page.tsx",
+          "src/app/sales/proforma-invoice/create/page.tsx",
+          "src/app/sales/proforma-invoice/[id]/page.tsx",
+          "src/app/sales/sales-order/page.tsx",
+          "src/app/sales/sales-order/[id]/page.tsx",
+          "src/app/sales/create-invoice/page.tsx",
+          "src/app/sales/create-invoice/edit/[id]/page.tsx",
+          "src/app/api/quotes/route.ts",
+          "src/app/api/quotes/[id]/route.ts",
+          "src/app/api/quotes/[id]/pdf/route.ts",
+          "src/app/api/proforma-invoices/route.ts",
+          "src/app/api/proforma-invoices/[id]/route.ts",
+          "src/app/api/proforma-invoices/[id]/pdf/route.ts",
+          "src/app/api/sales-orders/route.ts",
+          "src/app/api/sales-orders/[id]/route.ts",
+          "src/app/api/sales-orders/[id]/pdf/route.ts",
+          "src/app/api/invoices/route.ts",
+          "src/app/api/invoices/[id]/route.ts",
+          "src/app/api/invoices/[id]/pdf/route.ts",
+          "src/app/api/documents/[id]/convert/route.ts",
+          "src/components/sales/sales-document-form.tsx",
+          "src/lib/pdf-generator.ts",
+          "src/lib/document-number-generator.ts"
+        ]
+      },
+      {
+        "name": "Product & Inventory Management",
+        "description": "Product catalog management with import functionality and inventory tracking",
+        "files": [
+          "src/app/inventory/products/page.tsx",
+          "src/app/inventory/products/[id]/page.tsx",
+          "src/app/api/products/route.ts",
+          "src/app/api/products/[id]/route.ts",
+          "src/components/inventory/add-product-dialog.tsx",
+          "src/components/inventory/import-products-dialog.tsx"
+        ]
+      },
+      {
+        "name": "Document Management",
+        "description": "Document storage, versioning, virus scanning, and access control",
+        "files": [
+          "src/app/documents/page.tsx",
+          "src/app/api/documents/route.ts",
+          "src/app/api/documents/[id]/route.ts",
+          "src/app/api/documents/[id]/versions/route.ts",
+          "src/app/api/documents/file/[...path]/route.ts",
+          "src/components/documents/document-manager.tsx",
+          "src/lib/document-storage.ts",
+          "src/lib/virus-scanner.ts"
+        ]
+      },
+      {
+        "name": "Reporting & Analytics",
+        "description": "Comprehensive reporting system with sales analytics, product analytics, and performance metrics",
+        "files": [
+          "src/app/reports/page.tsx",
+          "src/app/reports/leads/page.tsx",
+          "src/app/reports/deals-pipeline/page.tsx",
+          "src/app/reports/customers/page.tsx",
+          "src/app/reports/contacts/page.tsx",
+          "src/app/analytics/products/page.tsx",
+          "src/app/analytics/global-presence/page.tsx",
+          "src/app/api/reports/performance/route.ts",
+          "src/app/api/reports/revenue/projection/route.ts",
+          "src/app/api/reports/sales-cycle/route.ts",
+          "src/app/api/reports/win-loss/route.ts",
+          "src/app/api/reports/pipeline/weighted/route.ts",
+          "src/app/api/analytics/products/top/route.ts",
+          "src/app/api/analytics/products/demand/route.ts",
+          "src/app/api/analytics/products/conversion/route.ts",
+          "src/app/api/analytics/products/timeseries/route.ts",
+          "src/components/reports/performance-widget.tsx",
+          "src/components/reports/revenue-projection-widget.tsx",
+          "src/components/reports/sales-cycle-widget.tsx",
+          "src/components/reports/win-loss-widget.tsx",
+          "src/components/reports/weighted-pipeline-widget.tsx",
+          "src/components/analytics/product-top-widget.tsx",
+          "src/components/analytics/product-demand-widget.tsx",
+          "src/components/analytics/product-conversion-widget.tsx",
+          "src/components/analytics/product-timeseries-widget.tsx",
+          "src/lib/reporting.ts",
+          "src/lib/product-analytics.ts"
+        ]
+      },
+      {
+        "name": "Workflow Automation",
+        "description": "Rule-based automation engine for leads, deals, and other entities",
+        "files": [
+          "src/app/api/automation/rules/route.ts",
+          "src/app/api/automation/rules/[id]/route.ts",
+          "src/lib/automation-engine.ts"
+        ]
+      },
+      {
+        "name": "Security Features",
+        "description": "Security monitoring, audit logs, session management, IP geolocation, and login activity tracking",
+        "files": [
+          "src/app/security/page.tsx",
+          "src/app/api/security/stats/route.ts",
+          "src/app/api/security/sessions/route.ts",
+          "src/app/api/security/sessions/[id]/route.ts",
+          "src/components/security/login-activity-table.tsx",
+          "src/lib/security-monitoring.ts",
+          "src/lib/audit-log.ts",
+          "src/lib/account-lockout.ts",
+          "src/lib/ip-geolocation.ts",
+          "src/lib/user-agent-parser.ts",
+          "src/lib/session-timeout.ts"
+        ]
+      },
+      {
+        "name": "Lead Capture Forms",
+        "description": "Dynamic lead capture form builder with public form submission",
+        "files": [
+          "src/app/sales/lead-capture-forms/page.tsx",
+          "src/app/sales/lead-capture-forms/builder/page.tsx",
+          "src/app/api/lead-capture-forms/route.ts",
+          "src/app/api/lead-capture-forms/[slug]/route.ts",
+          "src/app/api/lead-capture-forms/[slug]/submit/route.ts",
+          "src/app/api/public/lead-capture-forms/[slug]/route.ts",
+          "src/app/lead-form/[slug]/page.tsx"
+        ]
+      },
+      {
+        "name": "Activity Timeline",
+        "description": "Unified activity timeline for tracking changes across all entities",
+        "files": [
+          "src/components/activity/activity-timeline.tsx",
+          "src/app/api/activity/route.ts",
+          "src/lib/activity-logger.ts"
+        ]
+      },
+      {
+        "name": "Data Hygiene",
+        "description": "Duplicate detection and data quality management",
+        "files": [
+          "src/app/api/hygiene/duplicates/route.ts",
+          "src/app/api/hygiene/leads/[id]/route.ts",
+          "src/app/api/hygiene/leads/stale/route.ts",
+          "src/lib/data-hygiene.ts",
+          "src/components/hygiene/duplicate-warning-dialog.tsx",
+          "src/components/hygiene/lead-health-badge.tsx"
+        ]
+      },
+      {
+        "name": "Deals Pipeline",
+        "description": "Deal management with kanban board and pipeline tracking",
+        "files": [
+          "src/app/deals/page.tsx",
+          "src/app/api/deals/route.ts",
+          "src/app/api/deals/[id]/route.ts",
+          "src/components/deals/kanban-board.tsx",
+          "src/components/deals/add-deal-dialog.tsx"
+        ]
+      },
+      {
+        "name": "Dispatch Register",
+        "description": "Logistics dispatch tracking and management",
+        "files": [
+          "src/app/logistics/dispatch-register/page.tsx",
+          "src/app/api/dispatch-register/route.ts",
+          "src/app/api/dispatch-register/export/route.ts",
+          "src/components/dispatch/dispatch-register-table.tsx"
+        ]
+      },
+      {
+        "name": "Payments",
+        "description": "Payment tracking and management",
+        "files": [
+          "src/app/finance/payments-received/page.tsx",
+          "src/app/api/payments/route.ts",
+          "src/components/finance/add-payment-dialog.tsx"
+        ]
+      },
+      {
+        "name": "User & Role Management",
+        "description": "User management with role-based access control and permissions",
+        "files": [
+          "src/app/users-roles/page.tsx",
+          "src/app/api/users/route.ts",
+          "src/app/api/users/[id]/route.ts",
+          "src/app/api/users/[id]/profile/route.ts",
+          "src/app/api/permissions/route.ts",
+          "src/app/api/permissions/[id]/route.ts",
+          "src/app/api/permissions/roles/route.ts",
+          "src/app/api/permissions/roles/[id]/route.ts",
+          "src/components/users/add-user-dialog.tsx",
+          "src/components/rbac/protected-field.tsx"
+        ]
+      },
+      {
+        "name": "Global Search",
+        "description": "Universal search across all entities with command bar interface",
+        "files": [
+          "src/components/global-search/command-bar.tsx",
+          "src/components/global-search/command-bar-trigger.tsx",
+          "src/app/api/search/route.ts",
+          "src/app/api/search/global/route.ts",
+          "src/lib/global-search.ts"
+        ]
+      },
+      {
+        "name": "SRPL ID System",
+        "description": "Sequential ID generation system for all entities",
+        "files": [
+          "src/lib/srpl-id-generator.ts",
+          "src/lib/srpl-helpers.ts",
+          "src/app/api/srpl/config/route.ts"
+        ]
+      },
+      {
+        "name": "Workflow Configuration",
+        "description": "Configurable workflow stages, sources, and labels",
+        "files": [
+          "src/app/settings/workflow-config/page.tsx",
+          "src/app/api/workflow-config/lead-stages/route.ts",
+          "src/app/api/workflow-config/lead-stages/[id]/route.ts",
+          "src/app/api/workflow-config/lead-sources/route.ts",
+          "src/app/api/workflow-config/lead-sources/[id]/route.ts",
+          "src/app/api/workflow-config/labels/route.ts",
+          "src/app/api/workflow-config/labels/[id]/route.ts",
+          "src/app/api/workflow-config/deal-pipelines/route.ts",
+          "src/app/api/workflow-config/deal-pipelines/[id]/route.ts"
+        ]
+      },
+      {
+        "name": "Rate Limiting",
+        "description": "API rate limiting with Redis support",
+        "files": [
+          "src/lib/rate-limit.ts",
+          "src/lib/rate-limit-redis.ts"
+        ]
+      },
+      {
+        "name": "Validation",
+        "description": "Zod-based input validation schemas",
+        "files": [
+          "src/lib/validation.ts"
+        ]
+      },
+      {
+        "name": "UI Components",
+        "description": "Reusable UI component library built on Radix UI",
+        "files": [
+          "src/components/ui/button.tsx",
+          "src/components/ui/input.tsx",
+          "src/components/ui/select.tsx",
+          "src/components/ui/dialog.tsx",
+          "src/components/ui/table.tsx",
+          "src/components/ui/card.tsx",
+          "src/components/ui/badge.tsx",
+          "src/components/ui/toast.tsx",
+          "src/components/ui/sidebar.tsx",
+          "src/components/ui/avatar.tsx",
+          "src/components/ui/checkbox.tsx",
+          "src/components/ui/switch.tsx",
+          "src/components/ui/tabs.tsx",
+          "src/components/ui/alert.tsx",
+          "src/components/ui/separator.tsx",
+          "src/components/ui/popover.tsx",
+          "src/components/ui/dropdown-menu.tsx",
+          "src/components/ui/scroll-area.tsx",
+          "src/components/ui/chart.tsx"
+        ]
+      },
+      {
+        "name": "Layout Components",
+        "description": "Main layout, sidebar navigation, and document headers/footers",
+        "files": [
+          "src/components/layout/main-layout.tsx",
+          "src/components/layout/sidebar-nav.tsx",
+          "src/components/layout/document-header.tsx",
+          "src/components/layout/document-footer.tsx",
+          "src/components/layout/universal-search.tsx"
+        ]
+      },
+      {
+        "name": "Data Table Components",
+        "description": "Reusable data table components with filtering, sorting, and pagination",
+        "files": [
+          "src/components/data-table/filter-panel.tsx",
+          "src/components/data-table/pagination.tsx",
+          "src/components/data-table/search-bar.tsx",
+          "src/components/data-table/sort-by.tsx"
+        ]
+      },
+      {
+        "name": "Contacts Management",
+        "description": "Contact management system",
+        "files": [
+          "src/app/contacts/page.tsx",
+          "src/app/api/contacts/route.ts",
+          "src/components/contacts/contacts-grid.tsx"
+        ]
+      }
+    ]
   }
 }

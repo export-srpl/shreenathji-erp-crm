@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentManager } from '@/components/documents/document-manager';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PriceHistoryTable } from '@/components/price-history/price-history-table';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -159,12 +161,36 @@ export default function ProductDetailPage() {
         </Card>
       </div>
 
-      {/* Documents Section - Shows all documents linked to this product */}
-      <DocumentManager
-        entityType="product"
-        entityId={productId}
-        productId={productId}
-      />
+      {/* Tabs Section */}
+      <Card>
+        <Tabs defaultValue="documents" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="price-history">Price History</TabsTrigger>
+          </TabsList>
+          <TabsContent value="documents" className="mt-4">
+            {/* Documents Section - Shows all documents linked to this product */}
+            <DocumentManager
+              entityType="product"
+              entityId={productId}
+              productId={productId}
+            />
+          </TabsContent>
+          <TabsContent value="price-history" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Price History</CardTitle>
+                <CardDescription>
+                  Historical pricing data for this product across all customers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PriceHistoryTable productId={productId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </Card>
     </div>
   );
 }

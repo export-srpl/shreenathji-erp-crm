@@ -3,6 +3,7 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { logActivity } from '@/lib/activity-logger';
+import { capturePriceHistory } from '@/lib/price-history';
 
 // GET /api/quotes - list quotes with customer and items
 export async function GET() {
@@ -78,6 +79,23 @@ export async function POST(req: Request) {
       itemCount: quote.items.length,
     },
     performedById: auth.userId || null,
+  });
+
+  // Capture price history
+  await capturePriceHistory({
+    prisma,
+    documentType: 'Quote',
+    documentId: quote.id,
+    documentNo: quote.quoteNumber,
+    documentDate: quote.issueDate,
+    customerId: quote.customerId,
+    items: quote.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountPct: item.discountPct,
+    })),
+    currency: quote.customer.currency || 'INR',
   });
 
   return NextResponse.json(quote, { status: 201 });

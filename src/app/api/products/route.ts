@@ -44,10 +44,22 @@ export async function GET(req: Request) {
 // POST /api/products - create a new product
 export async function POST(req: Request) {
   try {
+    // SECURITY: Require authentication
+    const authError = await requireAuth();
+    if (authError) return authError;
+
     const prisma = await getPrismaClient();
     const auth = await getAuthContext(req);
-    if (!auth.userId || !isRoleAllowed(auth.role, ['admin'])) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    
+    // Allow admin, production, and inventory roles to create products
+    if (!auth.userId || !isRoleAllowed(auth.role, ['admin', 'production', 'inventory'])) {
+      return NextResponse.json(
+        { 
+          error: 'Forbidden',
+          message: 'You do not have permission to create products. Only Admin, Production, and Inventory roles can create products.'
+        }, 
+        { status: 403 }
+      );
     }
 
     const body = await req.json();

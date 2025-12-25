@@ -36,7 +36,8 @@ export async function globalSearch(
 
   // Search Leads
   if (!entityTypes || entityTypes.includes('lead')) {
-    const leads = await prisma.lead.findMany({
+    try {
+      const leads = await prisma.lead.findMany({
       where: {
         OR: [
           { companyName: { contains: searchTerm, mode: 'insensitive' } },
@@ -73,11 +74,15 @@ export async function globalSearch(
         relevanceScore: relevance,
       });
     }
+    } catch (error) {
+      console.error('Error searching leads:', error);
+    }
   }
 
   // Search Customers
   if (!entityTypes || entityTypes.includes('customer')) {
-    const customers = await prisma.customer.findMany({
+    try {
+      const customers = await prisma.customer.findMany({
       where: {
         OR: [
           { companyName: { contains: searchTerm, mode: 'insensitive' } },
@@ -111,11 +116,15 @@ export async function globalSearch(
         relevanceScore: relevance,
       });
     }
+    } catch (error) {
+      console.error('Error searching customers:', error);
+    }
   }
 
   // Search Products
   if (!entityTypes || entityTypes.includes('product')) {
-    const products = await prisma.product.findMany({
+    try {
+      const products = await prisma.product.findMany({
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -148,11 +157,15 @@ export async function globalSearch(
         relevanceScore: relevance,
       });
     }
+    } catch (error) {
+      console.error('Error searching products:', error);
+    }
   }
 
   // Search Deals
   if (!entityTypes || entityTypes.includes('deal')) {
-    const deals = await prisma.deal.findMany({
+    try {
+      const deals = await prisma.deal.findMany({
       where: {
         OR: [
           { title: { contains: searchTerm, mode: 'insensitive' } },
@@ -160,11 +173,6 @@ export async function globalSearch(
         ],
       },
       take: limit,
-      include: {
-        customer: {
-          select: { companyName: true },
-        },
-      },
       select: {
         id: true,
         srplId: true,
@@ -190,11 +198,15 @@ export async function globalSearch(
         relevanceScore: relevance,
       });
     }
+    } catch (error) {
+      console.error('Error searching deals:', error);
+    }
   }
 
   // Search Quotes
   if (!entityTypes || entityTypes.includes('quote')) {
-    const quotes = await prisma.quote.findMany({
+    try {
+      const quotes = await prisma.quote.findMany({
       where: {
         OR: [
           { quoteNumber: { contains: searchTerm, mode: 'insensitive' } },
@@ -202,11 +214,6 @@ export async function globalSearch(
         ],
       },
       take: limit,
-      include: {
-        customer: {
-          select: { companyName: true },
-        },
-      },
       select: {
         id: true,
         srplId: true,
@@ -232,11 +239,15 @@ export async function globalSearch(
         relevanceScore: relevance,
       });
     }
+    } catch (error) {
+      console.error('Error searching quotes:', error);
+    }
   }
 
   // Search Invoices
   if (!entityTypes || entityTypes.includes('invoice')) {
-    const invoices = await prisma.invoice.findMany({
+    try {
+      const invoices = await prisma.invoice.findMany({
       where: {
         OR: [
           { invoiceNumber: { contains: searchTerm, mode: 'insensitive' } },
@@ -244,11 +255,6 @@ export async function globalSearch(
         ],
       },
       take: limit,
-      include: {
-        customer: {
-          select: { companyName: true },
-        },
-      },
       select: {
         id: true,
         srplId: true,
@@ -273,6 +279,9 @@ export async function globalSearch(
         description: invoice.status,
         relevanceScore: relevance,
       });
+    }
+    } catch (error) {
+      console.error('Error searching invoices:', error);
     }
   }
 

@@ -3,6 +3,8 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { productUpdateSchema, validateInput } from '@/lib/validation';
+import { checkPricingApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -62,6 +64,73 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const data = validation.data;
 
+    // Load existing product for comparison
+    const existing = await prisma.product.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(
+      prisma,
+      'product',
+      params.id,
+      'update'
+    );
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This product has pending approval requests. Please wait for approval before making changes.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check for price changes that require approval
+    if (data.unitPrice !== undefined && auth.userId) {
+      const ipAddress = req.headers.get('x-forwarded-for') || 
+                        req.headers.get('x-real-ip') || 
+                        null;
+      const userAgent = req.headers.get('user-agent') || null;
+
+      const approvalCheck = await checkPricingApproval(prisma, {
+        resource: 'product',
+        resourceId: params.id,
+        userId: auth.userId,
+        unitPrice: data.unitPrice,
+        existingUnitPrice: existing.unitPrice ? Number(existing.unitPrice) : undefined,
+        ipAddress,
+        userAgent,
+      });
+
+      if (approvalCheck.requiresApproval) {
+        if (approvalCheck.error) {
+          return NextResponse.json(
+            {
+              error: approvalCheck.error,
+              approvalRequestId: approvalCheck.approvalRequestId,
+            },
+            { status: 403 }
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error: 'Approval required',
+            message: 'This price change requires approval before it can be applied.',
+            approvalRequestId: approvalCheck.approvalRequestId,
+            requiresApproval: true,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.sku !== undefined) updateData.sku = data.sku;
@@ -75,6 +144,32 @@ export async function PATCH(req: Request, { params }: Params) {
       data: updateData,
     });
 
+    // Phase 4: Log audit entry for price changes
+    if (data.unitPrice !== undefined && auth.userId) {
+      const ipAddress = req.headers.get('x-forwarded-for') || 
+                        req.headers.get('x-real-ip') || 
+                        null;
+      const userAgent = req.headers.get('user-agent') || null;
+
+      await logAudit(prisma, {
+        userId: auth.userId,
+        action: 'pricing_updated',
+        resource: 'product',
+        resourceId: params.id,
+        details: {
+          productName: product.name,
+          sku: product.sku,
+          oldPrice: existing.unitPrice ? Number(existing.unitPrice) : null,
+          newPrice: Number(product.unitPrice),
+          priceChangePct: existing.unitPrice
+            ? ((Number(product.unitPrice) - Number(existing.unitPrice)) / Number(existing.unitPrice)) * 100
+            : null,
+        },
+        ipAddress,
+        userAgent,
+      });
+    }
+
     return NextResponse.json(product);
   } catch (error) {
     console.error('Failed to update product:', error);
@@ -83,8 +178,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 // DELETE /api/products/[id] - Delete a product
-export async function DELETE(_req: Request, { params }: Params) {
-  const auth = await getAuthContext(_req);
+export async function DELETE(req: Request, { params }: Params) {
+  const auth = await getAuthContext(req);
   if (!auth.userId || !isRoleAllowed(auth.role, ['admin'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -92,6 +187,86 @@ export async function DELETE(_req: Request, { params }: Params) {
   const prisma = await getPrismaClient();
 
   try {
+    // Load product to check if it exists and get details
+    const product = await prisma.product.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Phase 4: Check if there's a pending approval request
+    const { isPendingApproval } = await import('@/lib/approval-integration');
+    const pending = await isPendingApproval(prisma, 'product', params.id, 'delete');
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This product deletion has pending approval requests. Please wait for approval before deleting.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check if approval is required for product deletion
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    const { checkAndRequestApproval } = await import('@/lib/approval-integration');
+    const approvalCheck = await checkAndRequestApproval(prisma, {
+      resource: 'product',
+      resourceId: params.id,
+      action: 'delete',
+      data: {
+        productName: product.name,
+        sku: product.sku,
+      },
+      userId: auth.userId,
+      ipAddress,
+      userAgent,
+    });
+
+    if (approvalCheck.requiresApproval) {
+      if (approvalCheck.error) {
+        return NextResponse.json(
+          {
+            error: approvalCheck.error,
+            approvalRequestId: approvalCheck.approvalRequestId,
+          },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message: 'Product deletion requires approval before it can be performed.',
+          approvalRequestId: approvalCheck.approvalRequestId,
+          requiresApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Log audit entry before deletion
+    const { logAudit } = await import('@/lib/audit-logger');
+    await logAudit(prisma, {
+      userId: auth.userId,
+      action: 'product_deleted',
+      resource: 'product',
+      resourceId: params.id,
+      details: {
+        productName: product.name,
+        sku: product.sku,
+      },
+      ipAddress,
+      userAgent,
+    });
+
     await prisma.product.delete({ where: { id: params.id } });
     return NextResponse.json({ success: true });
   } catch (error) {

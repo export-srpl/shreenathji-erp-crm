@@ -37,6 +37,7 @@ interface DispatchRegisterEntry {
   dispatchStatus: 'Pending' | 'Partially Dispatched' | 'Fully Dispatched' | 'Over-Dispatched';
   hasAnomaly: boolean;
   anomalyMessage?: string;
+  exceptionTypes?: Array<'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'>;
   salesPerson: string;
   salesPersonEmail: string;
   // Future-ready fields
@@ -51,36 +52,101 @@ interface DispatchRegisterEntry {
     orderedQuantity: number;
     dispatchedQuantity: number;
     pendingQuantity: number;
+    expectedShipDate?: string | null;
     invoices: Array<{
       invoiceId: string;
       invoiceNumber: string;
       invoiceDate: string;
       quantity: number;
     }>;
+    hasException?: boolean;
+    exceptionType?: 'over_dispatch' | 'delayed_dispatch' | 'excessive_partial';
+    exceptionMessage?: string;
   }>;
 }
 
 /**
- * Calculate dispatch status based on ordered vs dispatched quantities
+ * Configuration for exception detection thresholds (in days)
+ */
+const EXCEPTION_THRESHOLDS = {
+  DELAYED_DISPATCH_DAYS: 30, // Days after order date before flagging as delayed
+  EXCESSIVE_PARTIAL_DAYS: 30, // Days partial dispatch can remain before flagging
+  PARTIAL_DISPATCH_PERCENTAGE: 10, // Minimum percentage of order pending to flag as excessive partial
+};
+
+/**
+ * Calculate dispatch status and exceptions based on ordered vs dispatched quantities
  */
 function calculateDispatchStatus(
   ordered: number,
-  dispatched: number
-): { status: DispatchRegisterEntry['dispatchStatus']; hasAnomaly: boolean; message?: string } {
-  if (dispatched === 0) {
-    return { status: 'Pending', hasAnomaly: false };
-  } else if (dispatched < ordered) {
-    return { status: 'Partially Dispatched', hasAnomaly: false };
-  } else if (dispatched === ordered) {
-    return { status: 'Fully Dispatched', hasAnomaly: false };
-  } else {
-    // Over-dispatched
-    return {
-      status: 'Over-Dispatched',
-      hasAnomaly: true,
-      message: `Dispatched quantity (${dispatched.toFixed(2)}) exceeds ordered quantity (${ordered.toFixed(2)}) by ${(dispatched - ordered).toFixed(2)} MTS`,
-    };
+  dispatched: number,
+  orderDate: Date,
+  expectedShipDate: Date | null,
+  asOfDate: Date
+): {
+  status: DispatchRegisterEntry['dispatchStatus'];
+  hasAnomaly: boolean;
+  message?: string;
+  exceptionTypes?: Array<'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'>;
+} {
+  const exceptions: Array<'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'> = [];
+  const messages: string[] = [];
+
+  // Over-dispatch check
+  if (dispatched > ordered) {
+    exceptions.push('over_dispatch');
+    messages.push(
+      `Dispatched quantity (${dispatched.toFixed(2)}) exceeds ordered quantity (${ordered.toFixed(2)}) by ${(dispatched - ordered).toFixed(2)} MTS`
+    );
   }
+
+  // Delayed dispatch check
+  const daysSinceOrder = Math.floor((asOfDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
+  const expectedDate = expectedShipDate || new Date(orderDate.getTime() + EXCEPTION_THRESHOLDS.DELAYED_DISPATCH_DAYS * 24 * 60 * 60 * 1000);
+  
+  if (asOfDate > expectedDate && dispatched < ordered) {
+    const daysPastDue = Math.floor((asOfDate.getTime() - expectedDate.getTime()) / (1000 * 60 * 60 * 24));
+    exceptions.push('delayed_dispatch');
+    messages.push(
+      `Dispatch delayed by ${daysPastDue} day(s). Expected ship: ${expectedDate.toLocaleDateString()}, Pending: ${(ordered - dispatched).toFixed(2)} MTS`
+    );
+  } else if (!expectedShipDate && daysSinceOrder > EXCEPTION_THRESHOLDS.DELAYED_DISPATCH_DAYS && dispatched === 0) {
+    exceptions.push('delayed_dispatch');
+    messages.push(`Order placed ${daysSinceOrder} days ago, no dispatch yet`);
+  }
+
+  // Excessive partial dispatch check
+  if (dispatched > 0 && dispatched < ordered) {
+    const pendingQty = ordered - dispatched;
+    const pendingPercentage = (pendingQty / ordered) * 100;
+    
+    // Check if partial dispatch has been pending for too long
+    if (daysSinceOrder > EXCEPTION_THRESHOLDS.EXCESSIVE_PARTIAL_DAYS && pendingPercentage > EXCEPTION_THRESHOLDS.PARTIAL_DISPATCH_PERCENTAGE) {
+      exceptions.push('excessive_partial');
+      messages.push(
+        `Partial dispatch pending for ${daysSinceOrder} days. ${pendingQty.toFixed(2)} MTS (${pendingPercentage.toFixed(1)}%) remaining`
+      );
+    }
+  }
+
+  // Determine status
+  let status: DispatchRegisterEntry['dispatchStatus'];
+  if (dispatched === 0) {
+    status = 'Pending';
+  } else if (dispatched < ordered) {
+    status = 'Partially Dispatched';
+  } else if (dispatched === ordered) {
+    status = 'Fully Dispatched';
+  } else {
+    status = 'Over-Dispatched';
+  }
+
+  return {
+    status,
+    hasAnomaly: exceptions.length > 0,
+    message: messages.length > 0 ? messages.join('; ') : undefined,
+    exceptionTypes: exceptions.length > 0 ? exceptions : undefined,
+  };
 }
 
 /**
@@ -100,13 +166,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const asOfDateParam = searchParams.get('asOfDate');
     const includeAnomalies = searchParams.get('includeAnomalies') !== 'false';
+    const exceptionType = searchParams.get('exceptionType'); // 'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'
 
     // Parse as of date (default to current date/time)
     const asOfDate = asOfDateParam ? new Date(asOfDateParam) : new Date();
     asOfDate.setHours(23, 59, 59, 999); // End of day
 
     // Check cache
-    const cacheKey = `${CACHE_KEY}-${asOfDate.toISOString()}-${includeAnomalies}`;
+    const cacheKey = `${CACHE_KEY}-${asOfDate.toISOString()}-${includeAnomalies}-${exceptionType || 'all'}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return NextResponse.json(cached.data);
@@ -124,6 +191,7 @@ export async function GET(req: Request) {
         srplId: true,
         orderNumber: true,
         orderDate: true,
+        expectedShip: true,
         customer: {
           select: {
             id: true,
@@ -253,6 +321,15 @@ export async function GET(req: Request) {
           dispatch.primaryPODate = order.orderDate.toISOString();
         }
 
+        // Calculate line item exceptions
+        const lineItemExceptionCalc = calculateDispatchStatus(
+          orderedQty,
+          lineItemDispatched,
+          order.orderDate,
+          order.expectedShip,
+          asOfDate
+        );
+
         // Add line item detail
         dispatch.lineItems.push({
           salesOrderId: order.id,
@@ -262,7 +339,11 @@ export async function GET(req: Request) {
           orderedQuantity: orderedQty,
           dispatchedQuantity: lineItemDispatched,
           pendingQuantity: pendingQty,
+          expectedShipDate: order.expectedShip?.toISOString() || null,
           invoices: lineItemInvoices,
+          hasException: lineItemExceptionCalc.hasAnomaly,
+          exceptionType: lineItemExceptionCalc.exceptionTypes?.[0],
+          exceptionMessage: lineItemExceptionCalc.message,
         });
 
         // Update totals
@@ -274,12 +355,40 @@ export async function GET(req: Request) {
 
     // Calculate status and check for anomalies
     const dispatchData = Array.from(dispatchMap.values()).map((item) => {
-      const statusCalc = calculateDispatchStatus(item.totalOrderReceived, item.totalDispatched);
+      // Use the earliest order date and expected ship date for aggregate calculations
+      const earliestOrderDate = new Date(
+        Math.min(...item.lineItems.map((li) => new Date(li.salesOrderDate).getTime()))
+      );
+      const earliestExpectedShip = item.lineItems
+        .map((li) => (li.expectedShipDate ? new Date(li.expectedShipDate).getTime() : null))
+        .filter((d): d is number => d !== null);
+      const earliestExpectedShipDate =
+        earliestExpectedShip.length > 0 ? new Date(Math.min(...earliestExpectedShip)) : null;
+
+      const statusCalc = calculateDispatchStatus(
+        item.totalOrderReceived,
+        item.totalDispatched,
+        earliestOrderDate,
+        earliestExpectedShipDate,
+        asOfDate
+      );
+
+      // Collect all exception types from line items
+      const allExceptionTypes = new Set<string>();
+      item.lineItems.forEach((li) => {
+        if (li.hasException && li.exceptionType) {
+          allExceptionTypes.add(li.exceptionType);
+        }
+      });
+
       return {
         ...item,
         dispatchStatus: statusCalc.status,
-        hasAnomaly: statusCalc.hasAnomaly || item.hasAnomaly,
+        hasAnomaly: statusCalc.hasAnomaly || item.lineItems.some((li) => li.hasException),
         anomalyMessage: statusCalc.message,
+        exceptionTypes: Array.from(allExceptionTypes) as Array<
+          'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'
+        >,
         // Sort POs by date (most recent first)
         allPOs: item.allPOs.sort(
           (a, b) => new Date(b.poDate).getTime() - new Date(a.poDate).getTime()
@@ -292,9 +401,16 @@ export async function GET(req: Request) {
     });
 
     // Filter anomalies if requested
-    const filteredData = includeAnomalies
+    let filteredData = includeAnomalies
       ? dispatchData
       : dispatchData.filter((item) => !item.hasAnomaly);
+
+    // Filter by exception type if specified
+    if (exceptionType) {
+      filteredData = filteredData.filter((item) =>
+        item.exceptionTypes?.includes(exceptionType as any)
+      );
+    }
 
     // Sort by customer name, then product name
     filteredData.sort((a, b) => {

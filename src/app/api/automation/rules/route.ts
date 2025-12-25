@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logAudit } from '@/lib/audit-logger';
 
 // GET /api/automation/rules - list all automation rules (admin only)
 export async function GET(_req: Request) {
@@ -68,6 +69,27 @@ export async function POST(req: Request) {
         actions: typeof actions === 'string' ? actions : JSON.stringify(actions),
         createdById: auth.userId,
       },
+    });
+
+    // Phase 4: Log audit entry for workflow rule creation
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'workflow_rule_created',
+      resource: 'workflow_rule',
+      resourceId: rule.id,
+      details: {
+        ruleName: rule.name,
+        module: rule.module,
+        triggerType: rule.triggerType,
+        isActive: rule.isActive,
+      },
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json(rule, { status: 201 });

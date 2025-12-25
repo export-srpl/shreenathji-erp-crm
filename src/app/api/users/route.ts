@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { logAudit } from '@/lib/audit-logger';
 
 // GET /api/users - List all users
 export async function GET() {
@@ -89,6 +90,27 @@ export async function POST(req: Request) {
         passwordHash,
         salesScope: salesScope || null,
       },
+    });
+
+    // Phase 4: Log audit entry for user creation
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'user_created',
+      resource: 'user',
+      resourceId: user.id,
+      details: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        salesScope: user.salesScope,
+      },
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json({

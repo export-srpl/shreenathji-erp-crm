@@ -29,7 +29,8 @@ import {
   Contact,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Badge } from '../ui/badge';
 
 const navItems = [
   { href: '/sales/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -89,6 +90,10 @@ const navItems = [
     items: [
       { href: '/security', label: 'Overview' },
       { href: '/security/2fa', label: '2FA' },
+      { href: '/security/sessions', label: 'Active Sessions' },
+      { href: '/security/approvals', label: 'Approvals' },
+      { href: '/security/alerts', label: 'Security Alerts' },
+      { href: '/security/audit-logs', label: 'Audit Logs' },
     ],
   },
   { href: '/users-roles', label: 'Users & Roles', icon: Users },
@@ -96,10 +101,44 @@ const navItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const [openItems, setOpenItems] = useState<string[]>([]);
+  const [openItem, setOpenItem] = useState<string | null>(null);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
+
+  // Fetch pending approvals count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const res = await fetch('/api/approval-requests/count');
+        if (res.ok) {
+          const data = await res.json();
+          setPendingApprovalsCount(data.count || 0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch pending approvals count:', error);
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-expand the section that contains the current pathname
+  // This ensures the correct section is open when navigating between different sections
+  useEffect(() => {
+    const activeItem = navItems.find(item => 
+      item.items && item.items.some(sub => pathname.startsWith(sub.href))
+    );
+    if (activeItem && openItem !== activeItem.label) {
+      // Only update if we're navigating to a different section
+      setOpenItem(activeItem.label);
+    }
+  }, [pathname]);
 
   const toggleOpen = (label: string) => {
-    setOpenItems(prev => prev.includes(label) ? prev.filter(item => item !== label) : [...prev, label]);
+    // If clicking the same item, close it. Otherwise, open the new item (closing the previous one)
+    setOpenItem(prev => prev === label ? null : label);
   }
 
   return (
@@ -107,14 +146,15 @@ export function SidebarNav() {
       {navItems.map((item) =>
         item.items ? (
           <SidebarMenuItem key={item.label}>
-            <Collapsible open={openItems.includes(item.label)} onOpenChange={() => toggleOpen(item.label)}>
+            <Collapsible open={openItem === item.label} onOpenChange={() => toggleOpen(item.label)}>
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton
                   isActive={item.items.some(sub => pathname.startsWith(sub.href))}
+                  data-testid={`sidebar-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}-toggle`}
                 >
                   <item.icon />
                   <span>{item.label}</span>
-                  <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200" data-state={openItems.includes(item.label) ? 'open' : 'closed'}/>
+                  <ChevronDown className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${openItem === item.label ? 'rotate-180' : ''}`} />
                 </SidebarMenuButton>
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -126,9 +166,15 @@ export function SidebarNav() {
                         isActive={pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)}
                         disabled={(subItem as any).disabled}
                         tooltip={subItem.label}
+                        data-testid={`sidebar-nav-${subItem.label.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <Link href={subItem.href || '#'}>
+                        <Link href={subItem.href || '#'} className="flex items-center justify-between w-full">
                           <span>{subItem.label}</span>
+                          {subItem.href === '/security/approvals' && pendingApprovalsCount > 0 && (
+                            <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1.5 text-xs">
+                              {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -144,6 +190,7 @@ export function SidebarNav() {
               isActive={pathname === item.href}
               disabled={(item as any).disabled}
               tooltip={item.label}
+              data-testid={`sidebar-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
             >
               <Link href={item.href || '#'}>
                 <item.icon />

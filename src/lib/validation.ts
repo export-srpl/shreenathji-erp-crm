@@ -136,6 +136,7 @@ export const dealUpdateSchema = z.object({
   title: z.string().min(1).max(200).trim().optional(),
   stage: z.string().max(100).trim().optional(),
   customerId: z.string().min(1).optional(),
+  winLossReasonId: z.string().min(1).optional().nullable(),
   items: z
     .array(
       z.object({

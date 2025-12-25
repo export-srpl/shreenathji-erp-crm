@@ -61,13 +61,38 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const { title, stage, customerId, items } = validation.data;
+  const { title, stage, customerId, items, winLossReasonId } = validation.data;
 
   try {
+    // Phase 2: Require win/loss reason for Won or Lost stages
+    if (stage === 'Won' || stage === 'Lost') {
+      if (!winLossReasonId) {
+        return NextResponse.json(
+          {
+            error: 'Win/Loss reason is required',
+            message: `A reason is required when marking a deal as ${stage}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (stage !== undefined) updateData.stage = stage;
     if (customerId !== undefined) updateData.customerId = customerId;
+
+    // Set win/loss reason and timestamp if stage is Won or Lost
+    if (stage === 'Won' || stage === 'Lost') {
+      if (winLossReasonId) {
+        updateData.winLossReasonId = winLossReasonId;
+        updateData.wonLostAt = new Date();
+      }
+    } else if (stage !== undefined && existing.stage !== stage) {
+      // Clear win/loss reason if stage changed away from Won/Lost
+      updateData.winLossReasonId = null;
+      updateData.wonLostAt = null;
+    }
 
     if (items !== undefined) {
       // Delete existing items and create new ones

@@ -5,174 +5,284 @@
     "React 18.3.1",
     "PostgreSQL",
     "Prisma ORM",
-    "Tailwind CSS",
-    "ShadCN UI",
     "Firebase",
-    "Vercel Blob",
-    "Redis"
+    "Tailwind CSS",
+    "Radix UI",
+    "PDFKit",
+    "Genkit AI"
   ],
   "features": [
     {
-      "name": "User Authentication",
-      "description": "Login, logout, 2FA, session management, account lockout, rate limiting",
+      "name": "User Authentication & Authorization",
+      "description": "Email/password authentication with 2FA support, session management, role-based access control, and password reset functionality",
       "files": [
-        "src/app/api/auth/login/route.ts",
-        "src/app/api/auth/logout/route.ts",
-        "src/app/api/auth/me/route.ts",
-        "src/app/api/auth/2fa/verify/route.ts",
         "src/app/login/page.tsx",
         "src/app/login/verify-2fa/page.tsx",
+        "src/app/reset-password/page.tsx",
+        "src/app/reset-password/[token]/page.tsx",
+        "src/app/api/auth/login/route.ts",
+        "src/app/api/auth/logout/route.ts",
+        "src/app/api/auth/2fa/check/route.ts",
+        "src/app/api/auth/login/complete-2fa/route.ts",
+        "src/app/api/auth/request-password-reset/route.ts",
+        "src/app/api/auth/reset-password/route.ts",
         "src/lib/auth.ts",
-        "src/lib/account-lockout.ts",
-        "src/lib/rate-limit.ts"
+        "src/lib/auth-utils.ts",
+        "src/lib/account-lockout.ts"
       ]
     },
     {
       "name": "Lead Management",
-      "description": "Create, read, update, delete leads, lead stages, lead sources, lead health scoring",
+      "description": "Create, update, delete, and manage leads with status tracking, product interest, duplicate detection, and activity timeline",
       "files": [
-        "src/app/api/leads/route.ts",
-        "src/app/api/leads/[id]/route.ts",
         "src/app/sales/leads/page.tsx",
         "src/app/sales/leads/add/page.tsx",
-        "src/lib/data-hygiene.ts"
+        "src/app/api/leads/route.ts",
+        "src/app/api/leads/[id]/route.ts",
+        "src/app/api/leads/import/route.ts",
+        "src/components/leads/leads-table.tsx",
+        "src/components/leads/import-leads-dialog.tsx",
+        "src/components/leads/kanban-board.tsx"
       ]
     },
     {
-      "name": "Deal Pipeline",
-      "description": "Kanban board for deals, deal stages, deal creation and editing",
+      "name": "Deal Pipeline Management",
+      "description": "Kanban board for managing deals through pipeline stages, deal creation, updates, and stage transitions",
       "files": [
+        "src/app/deals/page.tsx",
         "src/app/api/deals/route.ts",
         "src/app/api/deals/[id]/route.ts",
-        "src/app/deals/page.tsx",
         "src/components/deals/kanban-board.tsx",
         "src/components/deals/add-deal-dialog.tsx"
       ]
     },
     {
-      "name": "Customer/Company Management",
-      "description": "Customer CRUD operations, currency selection, document linking, contacts",
+      "name": "Customer Management",
+      "description": "Manage customer/company records, contacts, import customers, and view customer details",
       "files": [
-        "src/app/api/customers/route.ts",
-        "src/app/api/customers/[id]/route.ts",
         "src/app/customers/page.tsx",
         "src/app/customers/add/page.tsx",
         "src/app/customers/[id]/page.tsx",
-        "src/app/api/contacts/route.ts"
+        "src/app/api/customers/route.ts",
+        "src/app/api/customers/[id]/route.ts",
+        "src/app/api/customers/import/route.ts",
+        "src/components/customers/customers-grid.tsx",
+        "src/components/customers/import-customers-dialog.tsx"
       ]
     },
     {
       "name": "Product Management",
-      "description": "Product CRUD, document status tracking (TDS, MSDS, COA), inventory",
+      "description": "Manage product catalog, inventory tracking, product import, and product analytics",
       "files": [
+        "src/app/inventory/products/page.tsx",
+        "src/app/inventory/products/[id]/page.tsx",
         "src/app/api/products/route.ts",
         "src/app/api/products/[id]/route.ts",
-        "src/app/api/products/document-status/route.ts",
-        "src/app/inventory/products/page.tsx",
-        "src/app/inventory/products/[id]/page.tsx"
+        "src/components/inventory/add-product-dialog.tsx",
+        "src/components/inventory/import-products-dialog.tsx",
+        "src/app/analytics/products/page.tsx"
+      ]
+    },
+    {
+      "name": "Sales Documents",
+      "description": "Create and manage Quotes, Proforma Invoices, Sales Orders, and Invoices with PDF generation and document conversion workflow",
+      "files": [
+        "src/app/sales/quote/page.tsx",
+        "src/app/sales/quote/create/page.tsx",
+        "src/app/sales/quote/edit/[id]/page.tsx",
+        "src/app/sales/proforma-invoice/page.tsx",
+        "src/app/sales/proforma-invoice/create/page.tsx",
+        "src/app/sales/proforma-invoice/edit/[id]/page.tsx",
+        "src/app/sales/sales-order/page.tsx",
+        "src/app/sales/sales-order/create/page.tsx",
+        "src/app/sales/sales-order/edit/[id]/page.tsx",
+        "src/app/sales/create-invoice/page.tsx",
+        "src/app/sales/create-invoice/create/page.tsx",
+        "src/app/sales/create-invoice/edit/[id]/page.tsx",
+        "src/app/api/quotes/route.ts",
+        "src/app/api/quotes/[id]/route.ts",
+        "src/app/api/quotes/[id]/pdf/route.ts",
+        "src/app/api/proforma-invoices/route.ts",
+        "src/app/api/proforma-invoices/[id]/route.ts",
+        "src/app/api/proforma-invoices/[id]/pdf/route.ts",
+        "src/app/api/sales-orders/route.ts",
+        "src/app/api/sales-orders/[id]/route.ts",
+        "src/app/api/sales-orders/[id]/pdf/route.ts",
+        "src/app/api/invoices/route.ts",
+        "src/app/api/invoices/[id]/route.ts",
+        "src/app/api/invoices/[id]/pdf/route.ts",
+        "src/app/api/documents/[id]/convert/route.ts",
+        "src/components/sales/sales-document-form.tsx",
+        "src/lib/pdf-generator.ts"
+      ]
+    },
+    {
+      "name": "Global Search",
+      "description": "Search across all entities (leads, deals, customers, products, quotes, invoices) with command bar interface",
+      "files": [
+        "src/app/api/search/global/route.ts",
+        "src/lib/global-search.ts",
+        "src/components/global-search/command-bar.tsx",
+        "src/components/global-search/command-bar-trigger.tsx",
+        "src/components/layout/universal-search.tsx"
+      ]
+    },
+    {
+      "name": "Activity Timeline",
+      "description": "Unified activity timeline showing all changes and actions across entities with timestamps and user details",
+      "files": [
+        "src/components/activity/activity-timeline.tsx",
+        "src/app/api/activity/route.ts",
+        "src/lib/activity-logger.ts"
+      ]
+    },
+    {
+      "name": "Data Hygiene",
+      "description": "Detect duplicate records and stale data with warnings and cleanup suggestions",
+      "files": [
+        "src/app/api/hygiene/duplicates/route.ts",
+        "src/app/api/hygiene/leads/[id]/route.ts",
+        "src/app/api/hygiene/leads/stale/route.ts",
+        "src/components/hygiene/duplicate-warning-dialog.tsx",
+        "src/components/hygiene/lead-health-badge.tsx",
+        "src/lib/data-hygiene.ts"
+      ]
+    },
+    {
+      "name": "Role-Based Access Control (RBAC)",
+      "description": "Fine-grained permissions system with role-based access, field-level permissions, and visibility filters",
+      "files": [
+        "src/lib/rbac.ts",
+        "src/app/api/permissions/route.ts",
+        "src/app/api/permissions/[id]/route.ts",
+        "src/app/api/permissions/roles/[id]/route.ts",
+        "src/components/rbac/protected-field.tsx",
+        "src/hooks/use-permissions.ts"
+      ]
+    },
+    {
+      "name": "Security & Monitoring",
+      "description": "Security overview, login activity tracking, session management, 2FA setup, and security alerts",
+      "files": [
+        "src/app/security/page.tsx",
+        "src/app/security/2fa/page.tsx",
+        "src/app/api/security/sessions/route.ts",
+        "src/app/api/security/sessions/[id]/route.ts",
+        "src/app/api/security/alerts/route.ts",
+        "src/app/api/security/stats/route.ts",
+        "src/components/security/login-activity-table.tsx",
+        "src/lib/security-monitoring.ts",
+        "src/lib/user-agent-parser.ts",
+        "src/lib/ip-geolocation.ts"
+      ]
+    },
+    {
+      "name": "Reporting & Analytics",
+      "description": "Sales summary reports, conversion funnel, top customers, product analytics, and performance metrics",
+      "files": [
+        "src/app/sales/dashboard/page.tsx",
+        "src/app/reports/page.tsx",
+        "src/app/reports/leads/page.tsx",
+        "src/app/reports/deals-pipeline/page.tsx",
+        "src/app/reports/customers/page.tsx",
+        "src/app/api/reports/sales-summary/route.ts",
+        "src/app/api/reports/conversion-funnel/route.ts",
+        "src/app/api/reports/top-customers/route.ts",
+        "src/app/api/analytics/products/conversion/route.ts",
+        "src/app/api/analytics/products/demand/route.ts",
+        "src/lib/reporting.ts",
+        "src/lib/product-analytics.ts"
+      ]
+    },
+    {
+      "name": "Lead Capture Forms",
+      "description": "Dynamic lead capture form builder with public submission endpoints and form management",
+      "files": [
+        "src/app/sales/lead-capture-forms/page.tsx",
+        "src/app/sales/lead-capture-forms/builder/page.tsx",
+        "src/app/api/lead-capture-forms/route.ts",
+        "src/app/api/lead-capture-forms/[slug]/route.ts",
+        "src/app/api/lead-capture-forms/[slug]/submit/route.ts",
+        "src/app/lead-form/[slug]/page.tsx"
       ]
     },
     {
       "name": "Document Management",
-      "description": "Document upload, versioning, virus scanning, Vercel Blob storage, linking to products/customers",
+      "description": "Upload, version, and manage documents with virus scanning, access control, and document linking",
       "files": [
+        "src/app/documents/page.tsx",
         "src/app/api/documents/route.ts",
         "src/app/api/documents/[id]/route.ts",
-        "src/app/documents/page.tsx",
+        "src/app/api/documents/[id]/versions/route.ts",
         "src/components/documents/document-manager.tsx",
         "src/lib/document-storage.ts",
         "src/lib/virus-scanner.ts"
       ]
     },
     {
-      "name": "Lead Capture Forms",
-      "description": "Public lead capture forms, form builder, automatic lead assignment",
+      "name": "Payment Tracking",
+      "description": "Record and track payments received, link payments to invoices, and manage payment reconciliation",
       "files": [
-        "src/app/api/lead-capture-forms/route.ts",
-        "src/app/api/lead-capture-forms/[slug]/submit/route.ts",
-        "src/app/lead-form/[slug]/page.tsx",
-        "src/app/sales/leads/forms/page.tsx"
+        "src/app/finance/payments-received/page.tsx",
+        "src/app/api/payments/route.ts",
+        "src/components/finance/add-payment-dialog.tsx"
       ]
     },
     {
       "name": "Dispatch Register",
-      "description": "Line-item dispatch tracking, PO visibility, dispatch status, as-of-date filtering",
+      "description": "Track dispatch records, shipment status, and logistics information",
       "files": [
+        "src/app/logistics/dispatch-register/page.tsx",
         "src/app/api/dispatch-register/route.ts",
         "src/app/api/dispatch-register/export/route.ts",
-        "src/app/logistics/dispatch-register/page.tsx",
         "src/components/dispatch/dispatch-register-table.tsx"
       ]
     },
     {
-      "name": "Sales Documents",
-      "description": "Quotes, Proforma Invoices, Sales Orders, Invoices with PDF generation",
-      "files": [
-        "src/app/api/quotes/route.ts",
-        "src/app/api/proforma-invoices/route.ts",
-        "src/app/api/sales-orders/route.ts",
-        "src/app/api/invoices/route.ts",
-        "src/app/sales/quote/page.tsx",
-        "src/app/sales/proforma-invoice/page.tsx",
-        "src/app/sales/sales-order/page.tsx",
-        "src/app/sales/create-invoice/page.tsx"
-      ]
-    },
-    {
-      "name": "Reports & Analytics",
-      "description": "Product analytics, sales reports, pipeline reports, revenue projections, win-loss analysis",
-      "files": [
-        "src/app/api/reports/pipeline/weighted/route.ts",
-        "src/app/api/reports/revenue/projection/route.ts",
-        "src/app/api/reports/win-loss/route.ts",
-        "src/app/api/analytics/products/demand/route.ts",
-        "src/app/api/analytics/products/conversion/route.ts",
-        "src/app/reports/advanced/page.tsx",
-        "src/app/analytics/products/page.tsx"
-      ]
-    },
-    {
-      "name": "RBAC & Permissions",
-      "description": "Role-based access control, field-level permissions, sales scope (export/domestic)",
-      "files": [
-        "src/app/api/permissions/route.ts",
-        "src/app/api/users/route.ts",
-        "src/app/users-roles/page.tsx",
-        "src/lib/rbac.ts",
-        "src/components/rbac/protected-field.tsx"
-      ]
-    },
-    {
       "name": "Workflow Automation",
-      "description": "Rule-based automation engine for leads, deals, notifications",
+      "description": "Configure and manage automation rules that trigger actions based on events and conditions",
       "files": [
         "src/app/api/automation/rules/route.ts",
+        "src/app/api/automation/rules/[id]/route.ts",
+        "src/app/settings/workflow-config/page.tsx",
         "src/lib/automation-engine.ts"
       ]
     },
     {
-      "name": "Global Search",
-      "description": "Universal search across entities with quick actions",
+      "name": "User Management",
+      "description": "Manage users, roles, permissions, and user profiles with role assignment",
       "files": [
-        "src/app/api/search/global/route.ts",
-        "src/lib/global-search.ts"
+        "src/app/users-roles/page.tsx",
+        "src/app/api/users/route.ts",
+        "src/app/api/users/[id]/route.ts",
+        "src/app/api/users/[id]/profile/route.ts",
+        "src/components/users/add-user-dialog.tsx"
       ]
     },
     {
-      "name": "Activity Timeline",
-      "description": "Unified activity timeline for all entities",
+      "name": "SRPL ID System",
+      "description": "Auto-numbering system for generating unique SRPL IDs for all entities with sequence management",
       "files": [
-        "src/app/api/activity/route.ts",
-        "src/components/activity/activity-timeline.tsx",
-        "src/lib/activity-logger.ts"
+        "src/lib/srpl-id-generator.ts",
+        "src/lib/srpl-helpers.ts",
+        "src/lib/prisma-middleware.ts",
+        "src/app/api/srpl/config/route.ts"
       ]
     },
     {
-      "name": "Dashboard",
-      "description": "Sales dashboard with key metrics and overview",
+      "name": "UI Components",
+      "description": "Reusable UI components built with Radix UI and Tailwind CSS including forms, tables, dialogs, and navigation",
       "files": [
-        "src/app/sales/dashboard/page.tsx",
-        "src/app/page.tsx"
+        "src/components/ui/button.tsx",
+        "src/components/ui/input.tsx",
+        "src/components/ui/select.tsx",
+        "src/components/ui/dialog.tsx",
+        "src/components/ui/table.tsx",
+        "src/components/ui/sidebar.tsx",
+        "src/components/layout/sidebar-nav.tsx",
+        "src/components/layout/main-layout.tsx",
+        "src/components/data-table/filter-panel.tsx",
+        "src/components/data-table/pagination.tsx"
       ]
     }
   ]

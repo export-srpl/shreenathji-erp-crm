@@ -36,6 +36,7 @@ interface DispatchRegisterEntry {
   dispatchStatus: 'Pending' | 'Partially Dispatched' | 'Fully Dispatched' | 'Over-Dispatched';
   hasAnomaly: boolean;
   anomalyMessage?: string;
+  exceptionTypes?: Array<'over_dispatch' | 'delayed_dispatch' | 'excessive_partial'>;
   salesPerson: string;
   salesPersonEmail: string;
   lineItems: Array<{
@@ -46,12 +47,16 @@ interface DispatchRegisterEntry {
     orderedQuantity: number;
     dispatchedQuantity: number;
     pendingQuantity: number;
+    expectedShipDate?: string | null;
     invoices: Array<{
       invoiceId: string;
       invoiceNumber: string;
       invoiceDate: string;
       quantity: number;
     }>;
+    hasException?: boolean;
+    exceptionType?: 'over_dispatch' | 'delayed_dispatch' | 'excessive_partial';
+    exceptionMessage?: string;
   }>;
 }
 
@@ -164,8 +169,22 @@ export function DispatchRegisterTable({ data, onExport }: DispatchRegisterTableP
                         >
                           {item.dispatchStatus}
                         </Badge>
-                        {item.hasAnomaly && (
-                          <AlertTriangle className="h-4 w-4 text-red-600" title={item.anomalyMessage} />
+                        {item.hasAnomaly && item.exceptionTypes && (
+                          <div className="flex items-center gap-1">
+                            {item.exceptionTypes.includes('over_dispatch') && (
+                              <Badge variant="destructive" className="text-xs">Over-Dispatch</Badge>
+                            )}
+                            {item.exceptionTypes.includes('delayed_dispatch') && (
+                              <Badge variant="destructive" className="text-xs">Delayed</Badge>
+                            )}
+                            {item.exceptionTypes.includes('excessive_partial') && (
+                              <Badge variant="destructive" className="text-xs">Excessive Partial</Badge>
+                            )}
+                            <AlertTriangle
+                              className="h-4 w-4 text-red-600"
+                              title={item.anomalyMessage}
+                            />
+                          </div>
                         )}
                       </div>
                     </TableCell>

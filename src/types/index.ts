@@ -36,7 +36,7 @@ export type Lead = {
   contactName: string;
   email: string;
   phone: string;
-  status: 'New' | 'Contacted' | 'Qualified' | 'Disqualified' | 'Converted';
+  status: 'New' | 'Contacted' | 'Qualified' | 'Disqualified' | 'Converted' | 'Won' | 'Lost';
   leadSource: string;
   assignedSalesperson: string;
   // For domestic vs international classification from lead capture
@@ -54,6 +54,12 @@ export type Lead = {
   };
   productInterest?: string;
   createdAt: string;
+  // Phase 2: Lead Scoring & Aging
+  score?: number | null;
+  temperature?: 'Hot' | 'Warm' | 'Cold' | null;
+  lastActivityDate?: string | null;
+  winLossReasonId?: string | null;
+  wonLostAt?: string | null;
 };
 
 export type Product = {

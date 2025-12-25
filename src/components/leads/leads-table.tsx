@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Mail, Phone, MapPin, Building2, Calendar, Tag } from "lucide-react";
+import { Loader2, Mail, Phone, MapPin, Building2, Calendar, Tag, Check, MoreVertical, UserPlus, Clock } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Lead } from '@/types';
 import { Badge } from "../ui/badge";
@@ -16,14 +16,33 @@ import { SearchBar } from "@/components/data-table/search-bar";
 import { SortBy, SortOption } from "@/components/data-table/sort-by";
 import { FilterPanel, FilterOption } from "@/components/data-table/filter-panel";
 import { Pagination } from "@/components/data-table/pagination";
+import { TemperatureBadge } from "./temperature-badge";
+import { WinLossReasonDialog } from "./win-loss-reason-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const DEFAULT_PAGE_SIZE = 15;
 
-const stageConfig: Record<Lead['status'], { color: string; bgColor: string }> = {
+const stageConfig: Record<string, { color: string; bgColor: string }> = {
     'New': { color: 'text-blue-700', bgColor: 'bg-blue-100 border-blue-200' },
     'Contacted': { color: 'text-yellow-700', bgColor: 'bg-yellow-100 border-yellow-200' },
     'Qualified': { color: 'text-purple-700', bgColor: 'bg-purple-100 border-purple-200' },
     'Converted': { color: 'text-green-700', bgColor: 'bg-green-100 border-green-200' },
+    'Won': { color: 'text-green-700', bgColor: 'bg-green-100 border-green-200' },
+    'Lost': { color: 'text-red-700', bgColor: 'bg-red-100 border-red-200' },
     'Disqualified': { color: 'text-red-700', bgColor: 'bg-red-100 border-red-200' }
   };
 
@@ -34,6 +53,8 @@ const sortOptions: SortOption[] = [
   { value: 'companyName-desc', label: 'Company Name (Z-A)' },
   { value: 'status-asc', label: 'Status (A-Z)' },
   { value: 'status-desc', label: 'Status (Z-A)' },
+  { value: 'score-desc', label: 'Score (High to Low)' },
+  { value: 'score-asc', label: 'Score (Low to High)' },
   { value: 'srplId-asc', label: 'SRPL ID (A-Z)' },
   { value: 'srplId-desc', label: 'SRPL ID (Z-A)' },
 ];
@@ -48,7 +69,19 @@ const filterOptions: FilterOption[] = [
       { value: 'Contacted', label: 'Contacted' },
       { value: 'Qualified', label: 'Qualified' },
       { value: 'Converted', label: 'Converted' },
+      { value: 'Won', label: 'Won' },
+      { value: 'Lost', label: 'Lost' },
       { value: 'Disqualified', label: 'Disqualified' },
+    ],
+  },
+  {
+    key: 'temperature',
+    label: 'Temperature',
+    type: 'select',
+    options: [
+      { value: 'Hot', label: 'Hot' },
+      { value: 'Warm', label: 'Warm' },
+      { value: 'Cold', label: 'Cold' },
     ],
   },
   {
@@ -92,6 +125,11 @@ export function LeadsTable() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('createdAt-desc');
   const [filters, setFilters] = useState<Record<string, any>>({});
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [savedViews, setSavedViews] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([]);
+  const [selectedView, setSelectedView] = useState<string>('');
+  const [winLossDialogOpen, setWinLossDialogOpen] = useState(false);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{ leadIds: string[]; status: string } | null>(null);
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -133,6 +171,40 @@ export function LeadsTable() {
     fetchProducts();
   }, [toast]);
 
+  // Fetch saved views
+  useEffect(() => {
+    const fetchSavedViews = async () => {
+      try {
+        const res = await fetch('/api/saved-views?module=LEAD');
+        if (res.ok) {
+          const views = await res.json();
+          setSavedViews(views);
+          // Set default view if available
+          const defaultView = views.find((v: any) => v.isDefault);
+          if (defaultView) {
+            applySavedView(defaultView);
+            setSelectedView(defaultView.id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch saved views:', error);
+      }
+    };
+    fetchSavedViews();
+  }, []);
+
+  const applySavedView = (view: any) => {
+    try {
+      const viewFilters = typeof view.filters === 'string' ? JSON.parse(view.filters) : view.filters;
+      setFilters(viewFilters);
+      if (view.sortBy && view.sortOrder) {
+        setSortBy(`${view.sortBy}-${view.sortOrder}`);
+      }
+    } catch (error) {
+      console.error('Failed to apply saved view:', error);
+    }
+  };
+
   // Filter, search, and sort leads
   const filteredAndSortedLeads = useMemo(() => {
     let result = [...allLeads];
@@ -160,6 +232,9 @@ export function LeadsTable() {
           if (key === 'source') {
             return lead.leadSource === value;
           }
+          if (key === 'temperature') {
+            return lead.temperature === value;
+          }
           return String(leadValue || '').toLowerCase().includes(String(value).toLowerCase());
         });
       }
@@ -174,6 +249,12 @@ export function LeadsTable() {
       if (sortField === 'createdAt') {
         aValue = new Date(aValue).getTime();
         bValue = new Date(bValue).getTime();
+      } else if (sortField === 'score') {
+        // Handle null/undefined scores
+        aValue = aValue ?? 0;
+        bValue = bValue ?? 0;
+        aValue = Number(aValue);
+        bValue = Number(bValue);
       } else {
         aValue = String(aValue || '').toLowerCase();
         bValue = String(bValue || '').toLowerCase();
@@ -220,13 +301,102 @@ export function LeadsTable() {
     setPageSize(size);
   }, []);
 
+  const handleSelectAll = useCallback((checked: boolean | 'indeterminate') => {
+    if (checked && pagedLeads) {
+      setSelectedLeadIds(new Set(pagedLeads.map(lead => lead.id)));
+    } else {
+      setSelectedLeadIds(new Set());
+    }
+  }, [pagedLeads]);
+
+  const allSelected = pagedLeads.length > 0 && selectedLeadIds.size === pagedLeads.length;
+  const someSelected = selectedLeadIds.size > 0 && selectedLeadIds.size < pagedLeads.length;
+
   return (
       <Card className="card-enhanced">
         <CardHeader>
-          <CardTitle>All Leads</CardTitle>
-          <CardDescription>A complete list of all leads in the pipeline.</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Leads</CardTitle>
+              <CardDescription>A complete list of all leads in the pipeline.</CardDescription>
+            </div>
+            {selectedLeadIds.size > 0 && (
+              <Badge variant="secondary" className="ml-auto">
+                {selectedLeadIds.size} selected
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
+          {/* Saved Views and Bulk Actions */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
+            {savedViews.length > 0 && (
+              <Select
+                value={selectedView}
+                onValueChange={(value) => {
+                  if (value === '') {
+                    setSelectedView('');
+                    setFilters({});
+                  } else {
+                    const view = savedViews.find(v => v.id === value);
+                    if (view) {
+                      applySavedView(view);
+                      setSelectedView(value);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Saved Views" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Leads</SelectItem>
+                  {savedViews.map((view) => (
+                    <SelectItem key={view.id} value={view.id}>
+                      {view.name} {view.isDefault && '(Default)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedLeadIds.size > 0 && (
+              <div className="flex gap-2 flex-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      Bulk Actions ({selectedLeadIds.size})
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Qualified')}>
+                      Mark as Qualified
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Contacted')}>
+                      Mark as Contacted
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Won')}>
+                      Mark as Won
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Lost')}>
+                      Mark as Lost
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Disqualified')}>
+                      Mark as Disqualified
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedLeadIds(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Search, Sort, and Filter Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1">
@@ -271,11 +441,19 @@ export function LeadsTable() {
               <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="w-[140px]">SRPL ID</TableHead>
                     <TableHead className="w-[200px]">Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Product Interest</TableHead>
                     <TableHead>Location</TableHead>
+                    <TableHead>Score</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Date</TableHead>
@@ -286,8 +464,21 @@ export function LeadsTable() {
                     <TableRow
                       key={lead.id}
                       className="cursor-pointer group animate-fade-in"
-                      onClick={() => router.push(`/sales/leads/add?leadId=${lead.id}`)}
+                      onClick={(e) => {
+                        // Don't navigate if clicking checkbox
+                        if ((e.target as HTMLElement).closest('button, [role="checkbox"]')) {
+                          return;
+                        }
+                        router.push(`/sales/leads/add?leadId=${lead.id}`);
+                      }}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedLeadIds.has(lead.id)}
+                          onCheckedChange={() => handleSelectLead(lead.id)}
+                          aria-label={`Select ${lead.companyName}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <span className="font-mono text-xs text-muted-foreground">
                           {lead.srplId || '—'}
@@ -411,6 +602,13 @@ export function LeadsTable() {
                         )}
                       </TableCell>
                       <TableCell>
+                        <TemperatureBadge
+                          temperature={lead.temperature}
+                          score={lead.score}
+                          showScore={true}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Badge 
                           className={cn(
                             "badge-enhanced font-medium border",
@@ -455,6 +653,17 @@ export function LeadsTable() {
             </>
           )}
         </CardContent>
+
+        {/* Win/Loss Reason Dialog */}
+        {pendingStatusUpdate && (
+          <WinLossReasonDialog
+            open={winLossDialogOpen}
+            onOpenChange={setWinLossDialogOpen}
+            status={pendingStatusUpdate.status as 'Won' | 'Lost' | 'Converted' | 'Disqualified'}
+            onConfirm={handleWinLossConfirm}
+            module="LEAD"
+          />
+        )}
       </Card>
   );
 }

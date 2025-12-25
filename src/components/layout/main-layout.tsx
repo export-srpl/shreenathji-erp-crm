@@ -79,13 +79,18 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       });
 
       if (!res.ok) {
-        console.error('Logout failed', await res.text());
+        const errorText = await res.text().catch(() => 'Unknown error');
+        console.error('Logout failed', errorText);
+        // Still redirect even if API call fails - cookies will expire naturally
       }
     } catch (e) {
       console.error('Logout error', e);
+      // Still redirect even on error - cookies will expire naturally
     } finally {
       setLoggingOut(false);
-      // Redirect to login; middleware will also enforce logged-out state
+      // Always redirect to login page
+      // Clear any local state if needed
+      setCurrentUser(null);
       router.push('/login');
     }
   }

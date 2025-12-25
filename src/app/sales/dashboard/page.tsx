@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Users, FileText, ShoppingCart, IndianRupee, TrendingUp, Target } from 'lucide-react';
+import { Loader2, Users, FileText, ShoppingCart, IndianRupee, TrendingUp, Target, Calendar } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/metric-card';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { Button } from '@/components/ui/button';
+import { DateRange } from 'react-day-picker';
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,16 +32,33 @@ export default function SalesDashboardPage() {
   const [salesSummary, setSalesSummary] = useState<any[]>([]);
   const [funnel, setFunnel] = useState<any | null>(null);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    // Default to last 12 months
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 12);
+    return { from: start, to: end };
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
+        // Build query params with date range
+        const params = new URLSearchParams();
+        if (dateRange?.from) {
+          params.append('startDate', dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+          params.append('endDate', dateRange.to.toISOString());
+        }
+        const queryString = params.toString();
+
         // Use Promise.allSettled to prevent one failure from blocking others
         const [summaryResult, funnelResult, customersResult] = await Promise.allSettled([
-          fetch('/api/reports/sales-summary'),
-          fetch('/api/reports/conversion-funnel'),
-          fetch('/api/reports/top-customers?limit=5'),
+          fetch(`/api/reports/sales-summary${queryString ? `?${queryString}` : ''}`),
+          fetch(`/api/reports/conversion-funnel${queryString ? `?${queryString}` : ''}`),
+          fetch(`/api/reports/top-customers?limit=5${queryString ? `&${queryString}` : ''}`),
         ]);
 
         if (summaryResult.status === 'fulfilled' && summaryResult.value.ok) {
@@ -58,13 +78,36 @@ export default function SalesDashboardPage() {
     };
 
     fetchData();
-  }, []);
+  }, [dateRange]);
+
+  const handleResetDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 12);
+    setDateRange({ from: start, to: end });
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Sales Dashboard</h1>
-        <p className="text-muted-foreground">Analyze sales performance and track key metrics.</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Sales Dashboard</h1>
+          <p className="text-muted-foreground">Analyze sales performance and track key metrics.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
+          <Button
+            variant="outline"
+            onClick={handleResetDateRange}
+            className="flex items-center gap-2"
+          >
+            <Calendar className="h-4 w-4" />
+            Reset to Last 12 Months
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

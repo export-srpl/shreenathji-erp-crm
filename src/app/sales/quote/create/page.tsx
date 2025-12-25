@@ -141,7 +141,7 @@ export default function CreateQuotePage() {
                   <span className="text-sm text-muted-foreground">Loading leads...</span>
                 </div>
               ) : (
-                <Select onValueChange={setSelectedLeadId} value={selectedLeadId || ''}>
+                <Select onValueChange={(v) => setSelectedLeadId(v || null)} value={selectedLeadId || undefined}>
                   <SelectTrigger id="lead-select">
                     <SelectValue placeholder="Select a lead (optional)..." />
                   </SelectTrigger>

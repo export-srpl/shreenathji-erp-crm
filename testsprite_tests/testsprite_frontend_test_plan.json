@@ -1,154 +1,658 @@
-{
-  "id": "shreenathji-erp-crm-frontend-tests",
-  "title": "Shreenathji ERP+CRM Frontend Test Plan",
-  "description": "Comprehensive frontend testing for Shreenathji ERP+CRM System including authentication, lead management, document management, and deal pipeline",
-  "steps": [
-    {
-      "id": "TC-001",
-      "name": "Login with valid credentials",
-      "description": "User should be able to log in with valid email and password",
-      "steps": [
-        "Navigate to http://localhost:3000/login",
-        "Enter valid email in email field",
-        "Enter valid password in password field",
-        "Click Sign In button",
-        "Verify redirect to /sales/dashboard",
-        "Verify user is authenticated"
-      ],
-      "expected_result": "User is successfully logged in and redirected to dashboard"
-    },
-    {
-      "id": "TC-002",
-      "name": "Login with invalid credentials",
-      "description": "User should see error message for invalid credentials",
-      "steps": [
-        "Navigate to http://localhost:3000/login",
-        "Enter invalid email or password",
-        "Click Sign In button",
-        "Verify error message is displayed",
-        "Verify user is not redirected"
-      ],
-      "expected_result": "Error message 'Invalid credentials' is shown and user remains on login page"
-    },
-    {
-      "id": "TC-003",
-      "name": "Password visibility toggle",
-      "description": "User should be able to toggle password visibility",
-      "steps": [
-        "Navigate to http://localhost:3000/login",
-        "Enter password in password field",
-        "Verify password is hidden by default",
-        "Click eye icon",
-        "Verify password text is visible",
-        "Click eye icon again",
-        "Verify password is hidden again"
-      ],
-      "expected_result": "Password visibility toggles correctly between visible and hidden"
-    },
-    {
-      "id": "TC-004",
-      "name": "Create new lead",
-      "description": "User should be able to create a new lead",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/sales/leads",
-        "Click 'Add New Lead' button",
-        "Fill in lead form with required fields (name, email, etc.)",
-        "Select product from searchable combobox",
-        "Click Save button",
-        "Verify success message",
-        "Verify lead appears in leads list"
-      ],
-      "expected_result": "New lead is created successfully and visible in leads list"
-    },
-    {
-      "id": "TC-005",
-      "name": "View leads list",
-      "description": "User should be able to view all leads with product names",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/sales/leads",
-        "Verify leads table is displayed",
-        "Verify product names are shown (not IDs or raw data)",
-        "Verify table columns are visible",
-        "Verify pagination works if many leads exist"
-      ],
-      "expected_result": "Leads list displays correctly with product names visible"
-    },
-    {
-      "id": "TC-006",
-      "name": "Upload document",
-      "description": "User should be able to upload a document with proper validation",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/documents",
-        "Click 'Upload New Document' button",
-        "Select document type (COA, TDS, MSDS, or Contract)",
-        "Select product or customer based on document type",
-        "Choose file (PDF, JPG, JPEG, or PNG)",
-        "Verify upload progress bar appears",
-        "Click Upload button",
-        "Verify document appears in documents list",
-        "Verify document type and linked entity are correct"
-      ],
-      "expected_result": "Document is uploaded successfully with progress indication and appears in documents list"
-    },
-    {
-      "id": "TC-007",
-      "name": "View document preview",
-      "description": "User should be able to preview documents without downloading",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/documents",
-        "Verify documents list is displayed",
-        "Click eye icon on a document",
-        "Verify document opens in preview modal or new tab",
-        "Verify document content is visible"
-      ],
-      "expected_result": "Document preview opens correctly showing document content"
-    },
-    {
-      "id": "TC-008",
-      "name": "View deals pipeline",
-      "description": "User should see deals organized in Kanban board",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/deals",
-        "Verify Kanban board is displayed",
-        "Verify deals are organized by stage (columns)",
-        "Verify deal cards are visible",
-        "Verify drag and drop functionality if available"
-      ],
-      "expected_result": "Deals pipeline displays correctly in Kanban format"
-    },
-    {
-      "id": "TC-009",
-      "name": "Edit deal",
-      "description": "User should be able to edit a deal",
-      "steps": [
-        "Login to the application",
-        "Navigate to http://localhost:3000/deals",
-        "Click on a deal card",
-        "Click Edit option from dropdown menu",
-        "Modify deal details in the form",
-        "Click Save button",
-        "Verify success message",
-        "Verify changes are reflected in the deal card"
-      ],
-      "expected_result": "Deal is updated successfully and changes are visible"
-    },
-    {
-      "id": "TC-010",
-      "name": "Navigate to dashboard",
-      "description": "First navigation link should route to dashboard for authenticated users",
-      "steps": [
-        "Login to the application",
-        "Click first navigation link in sidebar",
-        "Verify redirect to /sales/dashboard",
-        "Verify user is not logged out",
-        "Verify dashboard content is displayed"
-      ],
-      "expected_result": "User is redirected to dashboard, not logged out, and dashboard loads correctly"
-    }
-  ]
-}
+[
+  {
+    "id": "TC001",
+    "title": "User Authentication with valid credentials and 2FA",
+    "description": "Verify that a user can successfully login using valid username and password followed by correct 2FA verification.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid username/email and password"
+      },
+      {
+        "type": "action",
+        "description": "Click login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 2FA prompt is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid 2FA code"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is successfully logged in and redirected appropriately"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User Authentication failure with invalid credentials",
+    "description": "Verify that login fails when an incorrect username/email or password is provided.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid username/email or password"
+      },
+      {
+        "type": "action",
+        "description": "Click login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login failure message is shown and user is not authenticated"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Lead Lifecycle Management - Create, update, delete leads",
+    "description": "Verify that leads can be created, updated, and deleted correctly including lifecycle stage changes.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Leads page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new lead with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new lead appears in the leads list and Kanban board"
+      },
+      {
+        "type": "action",
+        "description": "Update lead information and move to next sales stage"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify lead information and stage are updated correctly"
+      },
+      {
+        "type": "action",
+        "description": "Delete the lead"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify lead no longer exists in the system"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Lead Data Import with duplicate detection",
+    "description": "Verify that importing leads from file works properly and duplicate leads are detected and handled.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Leads Import functionality"
+      },
+      {
+        "type": "action",
+        "description": "Upload valid leads import file that contains duplicates"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify system detects duplicates and prompts user with duplicate warning"
+      },
+      {
+        "type": "action",
+        "description": "Complete import process"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify leads are imported correctly without creating duplicate entries"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Dynamic Lead Capture Form submission and public accessibility",
+    "description": "Verify public users can access dynamic lead capture forms and successfully submit valid lead data.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access dynamic lead capture form public URL"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify form loads without errors and fields match form configuration"
+      },
+      {
+        "type": "action",
+        "description": "Fill in valid lead details in the form"
+      },
+      {
+        "type": "action",
+        "description": "Submit the form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify submission is accepted and confirmation is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Check lead is created in system with submitted details"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Customer & Contact Management CRUD operations",
+    "description": "Validate the creation, update, deletion, and retrieval of customers and associated contacts.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Customers page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new customer record with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify customer creation success and record appears in the list"
+      },
+      {
+        "type": "action",
+        "description": "Add a contact person linked to the new customer"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify contact is saved and linked correctly"
+      },
+      {
+        "type": "action",
+        "description": "Update customer and contact information"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updates persist and display correctly"
+      },
+      {
+        "type": "action",
+        "description": "Delete contact and customer records"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify records are removed successfully without orphan data"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Product and Inventory Management with import and tracking",
+    "description": "Verify product creation, import functions, and inventory tracking updates are consistent across the system.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Product catalog page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new product entry with all required fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate product appears in catalog and inventory with correct details"
+      },
+      {
+        "type": "action",
+        "description": "Import multiple products from valid import file"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify products are imported without data loss or duplication"
+      },
+      {
+        "type": "action",
+        "description": "Adjust inventory levels and track stock updates"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm inventory levels update correctly and reflected in UI"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Sales Document workflows - creation, PDF generation, and conversion",
+    "description": "Validate creation and conversion flows for Quotes, Proforma Invoices, Sales Orders, and Invoices including PDF generation and sequential numbering.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create new sales document (Quote)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sales document fields save correctly and displays in list"
+      },
+      {
+        "type": "action",
+        "description": "Generate PDF for the sales document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify PDF generates correctly with accurate data and formatting"
+      },
+      {
+        "type": "action",
+        "description": "Convert Quote to Proforma Invoice and then to Sales Order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify conversions maintain integrity, sequential SRPL IDs, and correct statuses"
+      },
+      {
+        "type": "action",
+        "description": "Convert Sales Order to Invoice and generate Invoice PDF"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate invoice creation, ID, and PDF correctness"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Workflow Automation trigger on lead status change",
+    "description": "Verify that workflow automation rules trigger expected actions when a lead changes sales stages.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Configure a workflow automation rule for lead stage change"
+      },
+      {
+        "type": "action",
+        "description": "Change lead stage to trigger automation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify automation actions such as notifications or status updates execute as configured"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Session Management and Security Features including login activity tracking",
+    "description": "Validate session creation, timeout, multiple sessions handling, and audit log entries for login activities including IP geolocation.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login with a valid user account"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify session is recorded and active"
+      },
+      {
+        "type": "action",
+        "description": "Open a second session with same user"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify multiple sessions are tracked and managed correctly"
+      },
+      {
+        "type": "action",
+        "description": "Wait for session timeout period or manually trigger logout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify session invalidation and user is logged out"
+      },
+      {
+        "type": "action",
+        "description": "Check security audit logs for login, logout, and IP details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify logs record appropriate entries with geolocation and user-agent data"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Global Search accuracy and performance",
+    "description": "Verify that the global search command bar returns accurate, relevant results promptly across all entities.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open global search command bar"
+      },
+      {
+        "type": "action",
+        "description": "Input search keyword covering leads, customers, deals, products, and documents"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that search results contain correct matching records from all entities"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify search response time is within acceptable limits for usability"
+      },
+      {
+        "type": "action",
+        "description": "Use command bar interface features like keyboard shortcuts and filters"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure interface responds correctly and filters narrow results as expected"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Data Hygiene - Duplicate detection and stale record identification",
+    "description": "Test detection of duplicate entities and stale records for leads and customers and verify accurate warnings with no false positives.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create several leads with similar or identical data to test duplicate detection"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify duplicates are detected and appropriate warnings are provided"
+      },
+      {
+        "type": "action",
+        "description": "Mark some leads as stale by avoiding updates past configured threshold"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm stale record identification and that stale leads are flagged correctly"
+      },
+      {
+        "type": "action",
+        "description": "Test manual resolution or merging options for duplicates"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify deduplication updates data correctly without loss"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Document Management - Upload, versioning, virus scanning, and access control",
+    "description": "Verify documents can be uploaded, versions managed, virus scanned automatically, and access permissions enforced securely.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload a document file to the system"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify upload succeeds and virus scan passes"
+      },
+      {
+        "type": "action",
+        "description": "Upload an updated version of the document"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate versioning increments and history is maintained"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access document with user lacking permissions"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied enforcing access control"
+      },
+      {
+        "type": "action",
+        "description": "Access document with authorized user"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm authorized access is permitted"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Reporting & Analytics data accuracy and filtering",
+    "description": "Validate generated reports and dashboards show correct and up-to-date sales, product performance, and customer analytics with filtering applied.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to various reporting dashboards"
+      },
+      {
+        "type": "action",
+        "description": "Apply filters for date ranges, product categories, and sales stages"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify reports update dynamically reflecting filtered data"
+      },
+      {
+        "type": "assertion",
+        "description": "Cross-check report data accuracy against known source data"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Responsive UI across desktop and mobile devices",
+    "description": "Verify that UI layout, navigation, and components render correctly and are usable on various screen sizes and devices.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open main application on desktop browser"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI elements align correctly and navigation works as expected"
+      },
+      {
+        "type": "action",
+        "description": "Open the application on various mobile screen sizes (emulated or real devices)"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm responsive layout, legible text, and usable navigation components"
+      },
+      {
+        "type": "action",
+        "description": "Interact with key UI components such as Kanban boards, tables, forms, and modals"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure interactive components function without errors"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Role-Based Access Control enforcement for restricted actions",
+    "description": "Verify users with different roles and permissions have appropriate access rights and restrictions throughout the application.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user with admin role"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access to full functionality including user & role management pages"
+      },
+      {
+        "type": "action",
+        "description": "Login as user with limited role (e.g. sales rep)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify restricted access to admin features and ability to perform only authorized actions"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to perform unauthorized action with limited role"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm action is blocked and error or access denied message is shown"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Payment Tracking - Add and reconcile payments with sales orders",
+    "description": "Validate that payments can be recorded, linked to sales orders, and reconciled correctly with financial data.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Payments Received page"
+      },
+      {
+        "type": "action",
+        "description": "Add a new payment entry for an existing sales order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify payment details are saved and linked to correct sales order"
+      },
+      {
+        "type": "action",
+        "description": "Perform reconciliation and check updated balance on sales order"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm financial data consistency and payment reflected in reports"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Dispatch Register - Record and track shipment status updates",
+    "description": "Verify logistics tracking by adding dispatch records and updating shipment statuses is functioning and data are presented correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access Dispatch Register page"
+      },
+      {
+        "type": "action",
+        "description": "Add a dispatch record for shipment with valid details"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm dispatch record is saved and displayed correctly"
+      },
+      {
+        "type": "action",
+        "description": "Update shipment status and log tracking information"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify status updates display correctly and logs are recorded"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Audit Logging of critical system changes",
+    "description": "Verify audit logs capture create, update, delete actions across key entities including user details and timestamps.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform create, update, and delete operations on leads, customers, and products"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify audit logs record operations accurately with correct user and timestamp information"
+      },
+      {
+        "type": "action",
+        "description": "Check audit log interface and query logs by entity and date"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm audit logs are accessible and filterable for review"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Password Reset flow with email verification",
+    "description": "Validate that users can request a password reset, receive email, and set new password securely.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to password reset request page"
+      },
+      {
+        "type": "action",
+        "description": "Submit valid email address for password reset"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify confirmation of password reset request is shown"
+      },
+      {
+        "type": "action",
+        "description": "Access password reset link received by email"
+      },
+      {
+        "type": "action",
+        "description": "Enter and confirm new valid password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify password reset success and user can login with new password"
+      }
+    ]
+  }
+]

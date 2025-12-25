@@ -4,6 +4,8 @@ import { getAuthContext } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
 import { deleteDocument } from '@/lib/document-storage';
 import { logActivity } from '@/lib/activity-logger';
+import { checkAndRequestApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -91,6 +93,82 @@ export async function DELETE(_req: Request, { params }: Params) {
     if (!document) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
+
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(
+      prisma,
+      'document',
+      params.id,
+      'delete'
+    );
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This document deletion has pending approval requests. Please wait for approval before deleting.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check if approval is required for document deletion
+    const ipAddress = _req.headers.get('x-forwarded-for') || 
+                      _req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = _req.headers.get('user-agent') || null;
+
+    const approvalCheck = await checkAndRequestApproval(prisma, {
+      resource: 'document',
+      resourceId: params.id,
+      action: 'delete',
+      data: {
+        documentName: document.name,
+        documentType: document.type,
+        entityType: document.entityType,
+      },
+      userId: auth.userId,
+      ipAddress,
+      userAgent,
+    });
+
+    if (approvalCheck.requiresApproval) {
+      if (approvalCheck.error) {
+        return NextResponse.json(
+          {
+            error: approvalCheck.error,
+            approvalRequestId: approvalCheck.approvalRequestId,
+          },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message: 'Document deletion requires approval before it can be performed.',
+          approvalRequestId: approvalCheck.approvalRequestId,
+          requiresApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Log audit entry for document deletion
+    await logAudit(prisma, {
+      userId: auth.userId,
+      action: 'document_deleted',
+      resource: 'document',
+      resourceId: params.id,
+      details: {
+        documentName: document.name,
+        documentType: document.type,
+        entityType: document.entityType,
+        entityId: document.entityId,
+      },
+      ipAddress,
+      userAgent,
+    });
 
     // Delete file from blob storage (use fileUrl if available, otherwise filePath)
     if (document.fileUrl) {

@@ -117,6 +117,17 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
+    // Validate that source document has items
+    if (!sourceDoc.items || sourceDoc.items.length === 0) {
+      return NextResponse.json(
+        {
+          errorCode: 'NO_ITEMS',
+          message: 'Source document has no items to convert',
+        },
+        { status: 400 }
+      );
+    }
+
     // Perform atomic conversion
     const result = await prisma.$transaction(async (tx) => {
       // Prepare common data
@@ -263,12 +274,44 @@ export async function POST(req: Request, { params }: Params) {
       return newDocument;
     });
 
+    // Validate that the conversion was successful and we have a valid document
+    if (!result || !result.id) {
+      console.error('Conversion failed: result is invalid', { result, targetType: body.targetType });
+      return NextResponse.json(
+        {
+          errorCode: 'CONVERSION_FAILED',
+          message: 'Conversion succeeded but the created document is invalid',
+        },
+        { status: 500 }
+      );
+    }
+
+    const documentNumber = result.proformaNumber || result.orderNumber || result.invoiceNumber;
+    if (!documentNumber) {
+      console.error('Conversion failed: document number is missing', { result, targetType: body.targetType });
+      return NextResponse.json(
+        {
+          errorCode: 'CONVERSION_FAILED',
+          message: 'Conversion succeeded but document number is missing',
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('Conversion successful:', {
+      sourceDocumentId: params.id,
+      sourceType,
+      targetType: body.targetType,
+      newDocumentId: result.id,
+      documentNumber,
+    });
+
     return NextResponse.json(
       {
         success: true,
         documentId: result.id,
         documentType: body.targetType,
-        documentNumber: result.proformaNumber || result.orderNumber || result.invoiceNumber,
+        documentNumber,
       },
       { status: 201 }
     );

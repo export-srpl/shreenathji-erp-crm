@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,47 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidatingToken, setIsValidatingToken] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(false);
+
+  // Validate token on page load
+  useEffect(() => {
+    const validateToken = async () => {
+      if (!token) {
+        setIsTokenValid(false);
+        setIsValidatingToken(false);
+        return;
+      }
+
+      try {
+        // Basic token format validation
+        // Full validation happens on submit
+        if (token.length < 10) {
+          setIsTokenValid(false);
+          setIsValidatingToken(false);
+          toast({
+            variant: 'destructive',
+            title: 'Invalid reset link',
+            description: 'The password reset link appears to be invalid.',
+          });
+          return;
+        }
+        setIsTokenValid(true);
+      } catch (error) {
+        console.error('Token validation error:', error);
+        setIsTokenValid(false);
+        toast({
+          variant: 'destructive',
+          title: 'Invalid reset link',
+          description: 'The password reset link is invalid or has expired.',
+        });
+      } finally {
+        setIsValidatingToken(false);
+      }
+    };
+
+    validateToken();
+  }, [token, toast]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,6 +104,38 @@ function ResetPasswordForm() {
     }
   }
 
+  if (isValidatingToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-muted-foreground">Validating reset link...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isTokenValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Invalid Reset Link</CardTitle>
+            <CardDescription>The password reset link is invalid or has expired.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push('/reset-password')} className="w-full">
+              Request a new reset link
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted px-4">
       <Card className="w-full max-w-md">
@@ -81,6 +154,7 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                data-testid="reset-password-new-password-input"
               />
             </div>
             <div className="space-y-2">
@@ -92,10 +166,23 @@ function ResetPasswordForm() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                data-testid="reset-password-confirm-password-input"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Updating…' : 'Update password'}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting}
+              data-testid="reset-password-submit-button"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating…
+                </>
+              ) : (
+                'Update password'
+              )}
             </Button>
           </form>
         </CardContent>

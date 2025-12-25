@@ -11,6 +11,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "verify:test-env": "node scripts/verify-test-environment.js",
     "security:audit": "npm audit",
     "security:audit:fix": "npm audit fix",
     "security:check": "npm run security:audit"

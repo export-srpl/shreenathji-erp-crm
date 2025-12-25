@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { customerUpdateSchema, validateInput } from '@/lib/validation';
+import { checkAndRequestApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -89,11 +91,89 @@ export async function DELETE(req: Request, { params }: Params) {
 
   try {
     const prisma = await getPrismaClient();
+
+    // Load customer to get details
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(prisma, 'customer', id, 'delete');
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This customer deletion has pending approval requests. Please wait for approval before deleting.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check if approval is required for customer deletion
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    const approvalCheck = await checkAndRequestApproval(prisma, {
+      resource: 'customer',
+      resourceId: id,
+      action: 'delete',
+      data: {
+        companyName: customer.companyName,
+        customerType: customer.customerType,
+      },
+      userId: auth.userId || '',
+      ipAddress,
+      userAgent,
+    });
+
+    if (approvalCheck.requiresApproval) {
+      if (approvalCheck.error) {
+        return NextResponse.json(
+          {
+            error: approvalCheck.error,
+            approvalRequestId: approvalCheck.approvalRequestId,
+          },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message: 'Customer deletion requires approval before it can be performed.',
+          approvalRequestId: approvalCheck.approvalRequestId,
+          requiresApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
     // Soft delete: set isActive = false instead of hard delete
     const updated = await prisma.customer.update({
       where: { id },
       data: { isActive: false },
       select: { id: true, isActive: true },
+    });
+
+    // Phase 4: Log audit entry for customer deletion
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'customer_deleted',
+      resource: 'customer',
+      resourceId: id,
+      details: {
+        companyName: customer.companyName,
+        customerType: customer.customerType,
+      },
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json({ success: true, isActive: updated.isActive });

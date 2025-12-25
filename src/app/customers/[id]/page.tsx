@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentManager } from '@/components/documents/document-manager';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PriceHistoryTable } from '@/components/price-history/price-history-table';
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -191,12 +193,36 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      {/* Documents Section - Shows all documents linked to this customer (especially contracts) */}
-      <DocumentManager
-        entityType="customer"
-        entityId={customerId}
-        customerId={customerId}
-      />
+      {/* Tabs Section */}
+      <Card>
+        <Tabs defaultValue="documents" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="price-history">Price History</TabsTrigger>
+          </TabsList>
+          <TabsContent value="documents" className="mt-4">
+            {/* Documents Section - Shows all documents linked to this customer (especially contracts) */}
+            <DocumentManager
+              entityType="customer"
+              entityId={customerId}
+              customerId={customerId}
+            />
+          </TabsContent>
+          <TabsContent value="price-history" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Price History</CardTitle>
+                <CardDescription>
+                  Historical pricing data for all products sold to this customer
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PriceHistoryTable customerId={customerId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </Card>
     </div>
   );
 }

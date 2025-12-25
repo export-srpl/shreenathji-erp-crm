@@ -8,18 +8,33 @@ import { getPrismaClient } from '@/lib/prisma';
  */
 export async function GET(req: Request) {
   const searchParams = new URL(req.url).searchParams;
-  const months = parseInt(searchParams.get('months') || '12', 10);
+  
+  // Support both date range and months parameter for backward compatibility
+  let startDate: Date;
+  let endDate: Date = new Date();
+  endDate.setHours(23, 59, 59, 999);
 
-  const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
-  startDate.setHours(0, 0, 0, 0);
+  if (searchParams.get('startDate') && searchParams.get('endDate')) {
+    // Use provided date range
+    startDate = new Date(searchParams.get('startDate')!);
+    endDate = new Date(searchParams.get('endDate')!);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+  } else {
+    // Fallback to months parameter
+    const months = parseInt(searchParams.get('months') || '12', 10);
+    startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+  }
 
   try {
     const prisma = await getPrismaClient();
     // Get quotes
     const quotes = await prisma.quote.findMany({
       where: {
-        issueDate: { gte: startDate },
+        issueDate: { gte: startDate, lte: endDate },
       },
       include: {
         items: true,
@@ -29,7 +44,7 @@ export async function GET(req: Request) {
     // Get proforma invoices
     const proformas = await prisma.proformaInvoice.findMany({
       where: {
-        issueDate: { gte: startDate },
+        issueDate: { gte: startDate, lte: endDate },
       },
       include: {
         items: true,
@@ -39,7 +54,7 @@ export async function GET(req: Request) {
     // Get sales orders
     const salesOrders = await prisma.salesOrder.findMany({
       where: {
-        orderDate: { gte: startDate },
+        orderDate: { gte: startDate, lte: endDate },
       },
       include: {
         items: true,
@@ -49,7 +64,7 @@ export async function GET(req: Request) {
     // Get invoices
     const invoices = await prisma.invoice.findMany({
       where: {
-        issueDate: { gte: startDate },
+        issueDate: { gte: startDate, lte: endDate },
       },
       include: {
         items: true,

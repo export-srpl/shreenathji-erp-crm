@@ -11,43 +11,81 @@ import { getPrismaClient } from '@/lib/prisma';
  * - Sales orders created
  * - Invoices created
  * - Payments received
+ * Query params: startDate, endDate (optional date range filter)
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const searchParams = new URL(req.url).searchParams;
+    
+    // Build date filter if provided
+    const dateFilter: any = {};
+    if (searchParams.get('startDate') && searchParams.get('endDate')) {
+      const startDate = new Date(searchParams.get('startDate')!);
+      const endDate = new Date(searchParams.get('endDate')!);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilter.createdAt = { gte: startDate, lte: endDate };
+    }
+
     const prisma = await getPrismaClient();
     // Count all leads
-    const totalLeads = await prisma.lead.count();
-
-    // Count qualified/converted leads
-    const qualifiedLeads = await prisma.lead.count({
-      where: {
-        status: { in: ['Qualified', 'Converted'] },
-      },
+    const totalLeads = await prisma.lead.count({
+      where: dateFilter.createdAt ? { createdAt: dateFilter.createdAt } : {},
     });
 
+    // Count qualified/converted leads
+    const qualifiedLeadsWhere: any = {
+      status: { in: ['Qualified', 'Converted'] },
+    };
+    if (dateFilter.createdAt) {
+      qualifiedLeadsWhere.createdAt = dateFilter.createdAt;
+    }
+    const qualifiedLeads = await prisma.lead.count({
+      where: qualifiedLeadsWhere,
+    });
+
+    // Build date filters for documents
+    const quoteDateFilter = dateFilter.createdAt ? { issueDate: dateFilter.createdAt } : {};
+    const proformaDateFilter = dateFilter.createdAt ? { issueDate: dateFilter.createdAt } : {};
+    const salesOrderDateFilter = dateFilter.createdAt ? { orderDate: dateFilter.createdAt } : {};
+    const invoiceDateFilter = dateFilter.createdAt ? { issueDate: dateFilter.createdAt } : {};
+    const paymentDateFilter = dateFilter.createdAt ? { paymentDate: dateFilter.createdAt } : {};
+
     // Count quotes
-    const quotesCount = await prisma.quote.count();
+    const quotesCount = await prisma.quote.count({
+      where: quoteDateFilter,
+    });
 
     // Count proforma invoices
-    const proformasCount = await prisma.proformaInvoice.count();
+    const proformasCount = await prisma.proformaInvoice.count({
+      where: proformaDateFilter,
+    });
 
     // Count sales orders
-    const salesOrdersCount = await prisma.salesOrder.count();
+    const salesOrdersCount = await prisma.salesOrder.count({
+      where: salesOrderDateFilter,
+    });
 
     // Count invoices
-    const invoicesCount = await prisma.invoice.count();
+    const invoicesCount = await prisma.invoice.count({
+      where: invoiceDateFilter,
+    });
 
     // Count payments
-    const paymentsCount = await prisma.payment.count();
+    const paymentsCount = await prisma.payment.count({
+      where: paymentDateFilter,
+    });
 
     // Calculate total payment amount
     const payments = await prisma.payment.findMany({
+      where: paymentDateFilter,
       select: { amount: true },
     });
     const totalPayments = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
     // Calculate total invoice amount
     const invoices = await prisma.invoice.findMany({
+      where: invoiceDateFilter,
       include: { items: true },
     });
     const totalInvoiced = invoices.reduce((sum, inv) => {

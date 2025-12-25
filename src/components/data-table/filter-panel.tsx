@@ -58,7 +58,7 @@ export function FilterPanel({ filters, values, onFilterChange, onClear, classNam
           </div>
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
             {filters.map((filter) => {
-              const value = values[filter.key] || '';
+              const value = values[filter.key] ?? '';
               return (
                 <div key={filter.key} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -86,12 +86,15 @@ export function FilterPanel({ filters, values, onFilterChange, onClear, classNam
                     />
                   )}
                   {filter.type === 'select' && filter.options && (
-                    <Select value={value} onValueChange={(val) => onFilterChange(filter.key, val)}>
+                    <Select 
+                      value={value ? String(value) : '__all__'} 
+                      onValueChange={(val) => onFilterChange(filter.key, val === '__all__' ? '' : val)}
+                    >
                       <SelectTrigger id={filter.key}>
                         <SelectValue placeholder={`Select ${filter.label.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="__all__">All</SelectItem>
                         {filter.options.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}

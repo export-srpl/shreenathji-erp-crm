@@ -6,6 +6,8 @@ import { leadUpdateSchema, validateInput } from '@/lib/validation';
 import { logActivity } from '@/lib/activity-logger';
 import { runAutomationRules } from '@/lib/automation-engine';
 import { canAccessRecord, hasPermission, getFieldPermissions, applyFieldPermissions } from '@/lib/rbac';
+import { updateLeadScore } from '@/lib/lead-scoring';
+import { trackStageChange } from '@/lib/lead-aging';
 
 type Params = {
   params: { id: string };
@@ -177,6 +179,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const updateData: any = {};
 
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.statusId !== undefined) updateData.statusId = data.statusId;
     if (data.followUpDate !== undefined) {
       if (data.followUpDate === null || data.followUpDate === '') {
         updateData.followUpDate = null;
@@ -234,27 +237,85 @@ export async function PATCH(req: Request, { params }: Params) {
     if (data.ownerId !== undefined && data.ownerId !== existing.ownerId) {
       changes.ownerId = { old: existing.ownerId, new: data.ownerId };
     }
+    // Track notes/remarks changes separately for detailed logging
+    const notesChanged = data.notes !== undefined && data.notes !== existing.notes;
+    if (notesChanged) {
+      changes.notes = { old: existing.notes || '', new: data.notes || '' };
+    }
 
-    // Log a summary activity if there were changes
-    if (Object.keys(changes).length > 0) {
-      const changedFields = Object.keys(changes).join(', ');
+    // Log notes/remarks update separately with detailed description
+    if (notesChanged) {
+      const notesDescription = data.notes && data.notes.trim()
+        ? `Remarks/Notes updated: "${data.notes.substring(0, 200)}${data.notes.length > 200 ? '...' : ''}"`
+        : 'Remarks/Notes cleared';
+      
       await logActivity({
         prisma,
         module: 'LEAD',
         entityType: 'lead',
         entityId: updated.id,
         srplId: updated.srplId || undefined,
-        action: changes.status ? 'stage_change' : 'update',
+        action: 'update',
+        field: 'notes',
+        oldValue: existing.notes || null,
+        newValue: data.notes || null,
+        description: notesDescription,
+        metadata: {
+          notesLength: data.notes ? data.notes.length : 0,
+          previousNotesLength: existing.notes ? existing.notes.length : 0,
+        },
+        performedById: auth.userId,
+      });
+    }
+
+    // Log a summary activity for other changes (excluding notes, which is logged separately)
+    const otherChanges = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => key !== 'notes')
+    );
+    if (Object.keys(otherChanges).length > 0) {
+      const changedFields = Object.keys(otherChanges).join(', ');
+      await logActivity({
+        prisma,
+        module: 'LEAD',
+        entityType: 'lead',
+        entityId: updated.id,
+        srplId: updated.srplId || undefined,
+        action: otherChanges.status ? 'stage_change' : 'update',
         field: undefined,
         oldValue: undefined,
         newValue: undefined,
         description: `Lead updated (${changedFields})`,
         metadata: {
-          changes,
+          changes: otherChanges,
         },
         performedById: auth.userId,
       });
+    }
 
+    // Track stage aging if status changed
+    if (changes.status) {
+      const newStatus = data.status || updated.status;
+      const stageId = data.statusId || updated.statusId || null;
+      await trackStageChange(prisma, updated.id, stageId, newStatus);
+      
+      // Update last activity date when stage changes
+      await prisma.lead.update({
+        where: { id: updated.id },
+        data: { lastActivityDate: new Date() },
+      });
+    } else if (Object.keys(changes).length > 0) {
+      // Update last activity date for other changes
+      await prisma.lead.update({
+        where: { id: updated.id },
+        data: { lastActivityDate: new Date() },
+      });
+    }
+
+    // Update lead score (async, best-effort)
+    await updateLeadScore(prisma, updated.id);
+
+    // Run automation rules if there were any changes
+    if (Object.keys(changes).length > 0) {
       await runAutomationRules({
         prisma,
         module: 'LEAD',
@@ -267,7 +328,12 @@ export async function PATCH(req: Request, { params }: Params) {
       });
     }
 
-    return NextResponse.json(updated);
+    // Fetch updated lead with score
+    const leadWithScore = await prisma.lead.findUnique({
+      where: { id: updated.id },
+    });
+
+    return NextResponse.json(leadWithScore || updated);
   } catch (error) {
     console.error('Failed to update lead', error);
     return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });

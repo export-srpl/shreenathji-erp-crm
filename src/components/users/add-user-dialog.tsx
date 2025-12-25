@@ -46,7 +46,9 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
         if (isEditMode && userToEdit) {
             setName(userToEdit.name);
             setEmail(userToEdit.email);
-            setRole(userToEdit.role);
+            // Ensure role is valid - if not in roles array, set to empty string
+            const validRole = roles.includes(userToEdit.role) ? userToEdit.role : '';
+            setRole(validRole);
             setSalesScope((userToEdit as any).salesScope || '');
             setModuleAccess(userToEdit.moduleAccess || {});
         } else {
@@ -134,7 +136,10 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
               <Label htmlFor="role" className="text-right">
                 Role
               </Label>
-              <Select onValueChange={setRole} value={role}>
+              <Select 
+                onValueChange={setRole} 
+                value={role || undefined}
+              >
                 <SelectTrigger id="role" className="col-span-3">
                     <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
@@ -149,12 +154,15 @@ export function AddUserDialog({ open, onOpenChange, onUserSaved, userToEdit }: A
               <Label htmlFor="salesScope" className="text-right">
                 Sales Scope
               </Label>
-              <Select onValueChange={setSalesScope} value={salesScope}>
+              <Select 
+                onValueChange={(v) => setSalesScope(v === '__none__' ? '' : v)} 
+                value={salesScope || '__none__'}
+              >
                 <SelectTrigger id="salesScope" className="col-span-3">
                     <SelectValue placeholder="Select sales scope (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     <SelectItem value="export_sales">Export Sales</SelectItem>
                     <SelectItem value="domestic_sales">Domestic Sales</SelectItem>
                 </SelectContent>

@@ -3,6 +3,9 @@ import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { invoiceUpdateSchema, validateInput } from '@/lib/validation';
 import { logActivity } from '@/lib/activity-logger';
+import { capturePriceHistory } from '@/lib/price-history';
+import { checkPricingApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -63,10 +66,69 @@ export async function PATCH(req: Request, { params }: Params) {
     // Load existing invoice for diffing
     const existing = await prisma.invoice.findUnique({
       where: { id: params.id },
+      include: { items: true },
     });
 
     if (!existing) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(
+      prisma,
+      'invoice',
+      params.id,
+      'update'
+    );
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This invoice has pending approval requests. Please wait for approval before making changes.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check for pricing/discount changes that require approval
+    if (data.items && auth.userId) {
+      const ipAddress = req.headers.get('x-forwarded-for') || 
+                        req.headers.get('x-real-ip') || 
+                        null;
+      const userAgent = req.headers.get('user-agent') || null;
+
+      const approvalCheck = await checkPricingApproval(prisma, {
+        resource: 'invoice',
+        resourceId: params.id,
+        userId: auth.userId,
+        items: data.items,
+        existingItems: existing.items as any,
+        ipAddress,
+        userAgent,
+      });
+
+      if (approvalCheck.requiresApproval) {
+        if (approvalCheck.error) {
+          return NextResponse.json(
+            {
+              error: approvalCheck.error,
+              approvalRequestId: approvalCheck.approvalRequestId,
+            },
+            { status: 403 }
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error: 'Approval required',
+            message: 'This pricing/discount change requires approval before it can be applied.',
+            approvalRequestId: approvalCheck.approvalRequestId,
+            requiresApproval: true,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const updated = await prisma.invoice.update({
@@ -120,6 +182,62 @@ export async function PATCH(req: Request, { params }: Params) {
       },
       performedById: auth.userId || null,
     });
+
+    // Capture price history on update (only if items changed)
+    if (data.items && updated.items.length > 0) {
+      await capturePriceHistory({
+        prisma,
+        documentType: 'Invoice',
+        documentId: updated.id,
+        documentNo: updated.invoiceNumber,
+        documentDate: updated.issueDate,
+        customerId: updated.customerId,
+        items: updated.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discountPct: item.discountPct,
+        })),
+        currency: updated.customer.currency || 'INR',
+      });
+
+      // Phase 4: Log audit entry for pricing changes
+      const ipAddress = req.headers.get('x-forwarded-for') || 
+                        req.headers.get('x-real-ip') || 
+                        null;
+      const userAgent = req.headers.get('user-agent') || null;
+
+      // Check if there were actual price/discount changes
+      const hasPricingChanges = existing.items.some((existingItem) => {
+        const newItem = updated.items.find((item) => item.productId === existingItem.productId);
+        if (!newItem) return true; // Item was added/removed
+        return (
+          Number(newItem.unitPrice) !== Number(existingItem.unitPrice) ||
+          (newItem.discountPct || 0) !== (existingItem.discountPct || 0)
+        );
+      });
+
+      if (hasPricingChanges && auth.userId) {
+        await logAudit(prisma, {
+          userId: auth.userId,
+          action: 'pricing_updated',
+          resource: 'invoice',
+          resourceId: params.id,
+          details: {
+            invoiceNumber: updated.invoiceNumber,
+            itemCount: updated.items.length,
+            items: updated.items.map((item) => ({
+              productId: item.productId,
+              productName: item.product?.name,
+              unitPrice: Number(item.unitPrice),
+              discountPct: item.discountPct || 0,
+            })),
+          },
+          ipAddress,
+          userAgent,
+        });
+      }
+    }
 
     // Invalidate dispatch register cache if items changed
     try {

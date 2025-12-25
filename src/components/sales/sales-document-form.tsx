@@ -177,13 +177,13 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | Partial<Customer> | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [currency, setCurrency] = useState('INR');
-  const [paymentTerms, setPaymentTerms] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState<string | undefined>(undefined);
   const [otherPaymentTerms, setOtherPaymentTerms] = useState('');
   const [salesPerson, setSalesPerson] = useState('');
   const [otherSalesPerson, setOtherSalesPerson] = useState('');
   const [additionalTerms, setAdditionalTerms] = useState('');
   
-  const [incoTerm, setIncoTerm] = useState('');
+  const [incoTerm, setIncoTerm] = useState<string | undefined>(undefined);
   const [portName, setPortName] = useState('');
   const [destPortName, setDestPortName] = useState('');
   const [destCountry, setDestCountry] = useState('');
@@ -329,8 +329,8 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
     } else {
         setCurrency('USD');
     }
-    setIncoTerm('');
-    setPaymentTerms('');
+    setIncoTerm(undefined);
+    setPaymentTerms(undefined);
   }, [isDomestic]);
 
   const handleSelectCustomer = (customerId: string) => {
@@ -554,6 +554,20 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       url = isEdit ? `/api/invoices/${existingDocument!.id}` : '/api/invoices';
     }
 
+    // Validate that we have a valid ID for edit mode
+    if (isEdit && !existingDocument?.id) {
+      console.error('Form submission error: existingDocument.id is missing', { existingDocument, documentType });
+      toast({
+        variant: 'destructive',
+        title: 'Invalid document data',
+        description: 'Cannot save: document ID is missing. Please refresh the page and try again.',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    console.log('Submitting document:', { documentType, isEdit, url, documentId: existingDocument?.id });
+
     try {
       const res = await fetch(url, {
         method,
@@ -563,7 +577,8 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
       
       if (!res.ok) {
         const error = await res.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || 'Request failed');
+        console.error('Submit failed:', { url, status: res.status, error });
+        throw new Error(error.error || error.message || 'Request failed');
       }
 
       toast({
@@ -767,7 +782,7 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
                 <div className="grid md:grid-cols-2 gap-6">
                     <div>
                         <Label htmlFor="paymentTerms">Terms of Payment</Label>
-                        <Select onValueChange={setPaymentTerms} value={paymentTerms} disabled={!selectedCustomer || isReadOnly}>
+                        <Select onValueChange={setPaymentTerms} value={paymentTerms || undefined} disabled={!selectedCustomer || isReadOnly}>
                             <SelectTrigger id="paymentTerms">
                                 <SelectValue placeholder="Select Payment Terms" />
                             </SelectTrigger>
@@ -785,7 +800,7 @@ export function SalesDocumentForm({ documentType, existingDocument, existingCust
                     </div>
                     <div>
                         <Label htmlFor="incoTerms">INCO Terms</Label>
-                        <Select value={incoTerm} onValueChange={setIncoTerm} disabled={!selectedCustomer || isReadOnly}>
+                        <Select value={incoTerm || undefined} onValueChange={setIncoTerm} disabled={!selectedCustomer || isReadOnly}>
                             <SelectTrigger id="incoTerms">
                                 <SelectValue placeholder="Select INCO Terms" />
                             </SelectTrigger>

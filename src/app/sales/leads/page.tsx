@@ -47,12 +47,16 @@ export default function LeadsPage() {
           <p className="text-muted-foreground">Capture, qualify, and convert new business leads.</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setImportDialogOpen(true)}
+              data-testid="import-leads-button"
+            >
               <Upload className="mr-2" />
               Import Bulk Leads
             </Button>
             <Link href="/sales/leads/add">
-                <Button>
+                <Button data-testid="add-new-lead-button">
                 <PlusCircle className="mr-2" />
                 Add New Lead
                 </Button>

@@ -147,7 +147,7 @@ export default function QuotePage() {
           <p className="text-muted-foreground">Create and manage sales quotations.</p>
         </div>
         <Link href="/sales/quote/create">
-            <Button>
+            <Button data-testid="create-quote-button">
                 <PlusCircle className="mr-2" />
                 Create Quote
             </Button>

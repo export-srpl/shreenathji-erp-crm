@@ -49,14 +49,29 @@ export async function POST(req: Request) {
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const sessionExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+    // Parse user agent for device, browser, and OS
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+    const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown';
+    const { parseUserAgent } = await import('@/lib/user-agent-parser');
+    const { device, browser, os } = parseUserAgent(userAgent);
+
+    // Get location from IP (non-blocking)
+    const { getLocationFromIP } = await import('@/lib/ip-geolocation');
+    const location = await getLocationFromIP(clientIP).catch(() => ({ city: null, country: null }));
+
     // Store session in database
-    await prisma.session.create({
+    const session = await prisma.session.create({
       data: {
         token: sessionToken,
         userId: user.id,
         expiresAt: sessionExpiry,
-        ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
-        userAgent: req.headers.get('user-agent') || 'unknown',
+        ipAddress: clientIP,
+        userAgent,
+        device,
+        browser,
+        os,
+        city: location.city,
+        country: location.country,
       },
     });
 

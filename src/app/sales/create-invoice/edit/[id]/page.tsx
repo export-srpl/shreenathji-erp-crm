@@ -19,23 +19,44 @@ export default function EditInvoicePage() {
     const fetchInvoice = async () => {
       setIsLoading(true);
       try {
+        if (!id) {
+          toast({
+            variant: 'destructive',
+            title: 'Invalid invoice ID',
+            description: 'No invoice ID provided in the URL.',
+          });
+          setIsLoading(false);
+          return;
+        }
+
         const res = await fetch(`/api/invoices/${id}`);
         if (res.ok) {
           const data = await res.json();
+          if (!data || !data.id) {
+            console.error('Invalid invoice data received:', data);
+            toast({
+              variant: 'destructive',
+              title: 'Invalid invoice data',
+              description: 'The invoice data received is invalid. Please try again.',
+            });
+            return;
+          }
           setDocumentData(data);
         } else {
+          const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Failed to fetch invoice:', { id, status: res.status, error: errorData });
           toast({
             variant: 'destructive',
             title: 'Failed to load invoice',
-            description: 'Could not load the invoice. Please try again.',
+            description: errorData.error || `Could not load invoice with ID: ${id}. Please check if the invoice exists.`,
           });
         }
-      } catch (error) {
-        console.error('Failed to fetch invoice:', error);
+      } catch (error: any) {
+        console.error('Failed to fetch invoice:', { id, error: error.message, stack: error.stack });
         toast({
           variant: 'destructive',
           title: 'Failed to load invoice',
-          description: 'Could not load the invoice. Please try again.',
+          description: `Could not load the invoice: ${error.message || 'Unknown error'}`,
         });
       } finally {
         setIsLoading(false);

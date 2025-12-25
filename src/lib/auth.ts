@@ -94,11 +94,14 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
       };
     }
 
+    // Normalize role to lowercase to match AppRole type
+    const userRole = (user.role || 'user').toLowerCase() as AppRole;
+    
     return {
       userId: user.id,
       firebaseUid: user.firebaseUid,
       email: user.email,
-      role: (user.role as AppRole) || 'user',
+      role: userRole,
       salesScope: (user as any).salesScope || null,
     };
   } catch (error) {
@@ -114,6 +117,9 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
 }
 
 export function isRoleAllowed(role: AppRole, allowed: AppRole[]): boolean {
-  return allowed.includes(role);
+  // Normalize role to lowercase for comparison
+  const normalizedRole = role?.toLowerCase() as AppRole;
+  const normalizedAllowed = allowed.map(r => r.toLowerCase() as AppRole);
+  return normalizedAllowed.includes(normalizedRole);
 }
 

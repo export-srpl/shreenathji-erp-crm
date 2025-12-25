@@ -76,12 +76,12 @@ export default function ProductAnalyticsPage() {
             </div>
             <div>
               <Label htmlFor="customerType">Customer Type</Label>
-              <Select value={filters.customerType || ''} onValueChange={(v) => handleFilterChange('customerType', v)}>
+              <Select value={filters.customerType || '__all__'} onValueChange={(v) => handleFilterChange('customerType', v === '__all__' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="__all__">All Types</SelectItem>
                   <SelectItem value="domestic">Domestic</SelectItem>
                   <SelectItem value="international">International</SelectItem>
                 </SelectContent>

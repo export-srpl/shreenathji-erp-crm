@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
@@ -52,12 +52,28 @@ function LoginForm() {
       }
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        // Handle error responses
+        let errorMessage = 'Invalid email or password.';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status-based messages
+          if (res.status === 401) {
+            errorMessage = 'Invalid email or password.';
+          } else if (res.status === 403) {
+            errorMessage = 'Access denied. Please contact your administrator.';
+          } else if (res.status >= 500) {
+            errorMessage = 'Server error. Please try again later.';
+          }
+        }
+        
         toast({
           variant: 'destructive',
           title: 'Login failed',
-          description: errorData.error || 'Invalid email or password.',
+          description: errorMessage,
         });
+        setIsSubmitting(false);
         return;
       }
 
@@ -69,6 +85,7 @@ function LoginForm() {
         return;
       }
 
+      // Only show success and redirect if we actually got here (response was ok)
       toast({
         title: 'Welcome back',
         description: 'You have logged in successfully.',
@@ -125,6 +142,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              data-testid="login-email-input"
             />
           </div>
           <div className="space-y-2">
@@ -138,6 +156,7 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="pr-10"
+                data-testid="login-password-input"
               />
               <Button
                 type="button"
@@ -156,11 +175,36 @@ function LoginForm() {
             </div>
           </div>
           <div className="space-y-2">
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting}
+              data-testid="login-submit-button"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
             </Button>
             <div className="text-center text-xs text-muted-foreground">
-              <Link href="/reset-password" className="underline underline-offset-4 hover:text-primary">
+              <Link 
+                href="/reset-password" 
+                className="underline underline-offset-4 hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded pointer-events-auto"
+                aria-label="Reset password"
+                data-testid="forgot-password-link"
+                onClick={(e) => {
+                  // Ensure link is always clickable, even during login
+                  if (isSubmitting) {
+                    e.preventDefault();
+                    // Allow navigation but show a message
+                    return;
+                  }
+                }}
+              >
                 Forgot password?
               </Link>
             </div>

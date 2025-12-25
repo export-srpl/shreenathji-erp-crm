@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { userAdminUpdateSchema, validateInput } from '@/lib/validation';
+import { checkAndRequestApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -62,6 +64,70 @@ export async function PATCH(req: Request, { params }: Params) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Phase 4: Check for role changes - require approval
+    const roleChanged = role !== undefined && role !== existing.role;
+    if (roleChanged && auth.userId) {
+      const ipAddress = req.headers.get('x-forwarded-for') || 
+                        req.headers.get('x-real-ip') || 
+                        null;
+      const userAgent = req.headers.get('user-agent') || null;
+
+      // Check if there's a pending approval request (non-blocking)
+      try {
+        const pending = await isPendingApproval(prisma, 'user', params.id, 'update_role');
+
+        if (pending) {
+          return NextResponse.json(
+            {
+              error: 'Pending approval required',
+              message: 'This user role change has pending approval requests. Please wait for approval before making changes.',
+            },
+            { status: 403 }
+          );
+        }
+
+        // Check if approval is required for role changes
+        const approvalCheck = await checkAndRequestApproval(prisma, {
+          resource: 'user',
+          resourceId: params.id,
+          action: 'update_role',
+          data: {
+            email: existing.email,
+            oldRole: existing.role,
+            newRole: role,
+          },
+          userId: auth.userId,
+          ipAddress,
+          userAgent,
+        });
+
+        if (approvalCheck.requiresApproval) {
+          if (approvalCheck.error) {
+            return NextResponse.json(
+              {
+                error: approvalCheck.error,
+                approvalRequestId: approvalCheck.approvalRequestId,
+              },
+              { status: 403 }
+            );
+          }
+
+          return NextResponse.json(
+            {
+              error: 'Approval required',
+              message: 'User role changes require approval before they can be applied.',
+              approvalRequestId: approvalCheck.approvalRequestId,
+              requiresApproval: true,
+            },
+            { status: 403 }
+          );
+        }
+      } catch (approvalErr) {
+        // Log but don't block the update if approval check fails
+        console.warn('Approval check failed for user role change, continuing with update:', approvalErr);
+      }
+    }
+
     // If email is being changed, validate domain
     if (email && email !== existing.email) {
       const normalisedEmail = email.trim().toLowerCase();
@@ -107,6 +173,42 @@ export async function PATCH(req: Request, { params }: Params) {
       data: updateData,
     });
 
+    // Phase 4: Log audit entry for user changes
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    const auditDetails: Record<string, unknown> = {};
+    if (roleChanged) {
+      auditDetails.roleChange = { old: existing.role, new: user.role };
+    }
+    if (email && email !== existing.email) {
+      auditDetails.emailChange = { old: existing.email, new: user.email };
+    }
+    if (salesScope !== undefined && salesScope !== existing.salesScope) {
+      auditDetails.salesScopeChange = { old: existing.salesScope, new: user.salesScope };
+    }
+    if (password) {
+      auditDetails.passwordChanged = true;
+    }
+
+    if (Object.keys(auditDetails).length > 0) {
+      await logAudit(prisma, {
+        userId: auth.userId || null,
+        action: roleChanged ? 'user_role_changed' : 'user_updated',
+        resource: 'user',
+        resourceId: params.id,
+        details: {
+          targetUserId: params.id,
+          targetUserEmail: user.email,
+          ...auditDetails,
+        },
+        ipAddress,
+        userAgent,
+      });
+    }
+
     return NextResponse.json({
       id: user.id,
       name: user.name || 'Unknown',
@@ -143,6 +245,26 @@ export async function DELETE(req: Request, { params }: Params) {
     }
 
     await prisma.user.delete({ where: { id: params.id } });
+
+    // Phase 4: Log audit entry for user deletion
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'user_deleted',
+      resource: 'user',
+      resourceId: params.id,
+      details: {
+        deletedUserEmail: user.email,
+        deletedUserName: user.name,
+        deletedUserRole: user.role,
+      },
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

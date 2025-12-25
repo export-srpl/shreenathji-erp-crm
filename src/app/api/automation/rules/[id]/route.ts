@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth-utils';
+import { checkAndRequestApproval, isPendingApproval } from '@/lib/approval-integration';
+import { logAudit } from '@/lib/audit-logger';
 
 type Params = {
   params: { id: string };
@@ -50,6 +52,62 @@ export async function PATCH(req: Request, { params }: Params) {
       return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
     }
 
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(prisma, 'workflow_rule', params.id, 'update');
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This workflow rule has pending approval requests. Please wait for approval before making changes.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check if approval is required for workflow rule changes
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    const approvalCheck = await checkAndRequestApproval(prisma, {
+      resource: 'workflow_rule',
+      resourceId: params.id,
+      action: 'update',
+      data: {
+        name,
+        module,
+        triggerType,
+        isActive,
+      },
+      userId: auth.userId || '',
+      ipAddress: logIpAddress,
+      userAgent: logUserAgent,
+    });
+
+    if (approvalCheck.requiresApproval) {
+      if (approvalCheck.error) {
+        return NextResponse.json(
+          {
+            error: approvalCheck.error,
+            approvalRequestId: approvalCheck.approvalRequestId,
+          },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message: 'Workflow rule changes require approval before they can be applied.',
+          approvalRequestId: approvalCheck.approvalRequestId,
+          requiresApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
     const data: any = {};
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
@@ -87,6 +145,30 @@ export async function PATCH(req: Request, { params }: Params) {
       },
     });
 
+    // Phase 4: Log audit entry for workflow rule changes
+    const logIpAddress = req.headers.get('x-forwarded-for') || 
+                         req.headers.get('x-real-ip') || 
+                         null;
+    const logUserAgent = req.headers.get('user-agent') || null;
+
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'workflow_rule_updated',
+      resource: 'workflow_rule',
+      resourceId: params.id,
+      details: {
+        ruleName: updated.name,
+        module: updated.module,
+        changes: {
+          name: name !== undefined ? { old: existing.name, new: name } : undefined,
+          isActive: isActive !== undefined ? { old: existing.isActive, new: isActive } : undefined,
+          module: module !== undefined ? { old: existing.module, new: module } : undefined,
+        },
+      },
+      ipAddress: logIpAddress,
+      userAgent: logUserAgent,
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Failed to update automation rule:', error);
@@ -104,8 +186,84 @@ export async function DELETE(req: Request, { params }: Params) {
   try {
     const prisma = await getPrismaClient();
 
+    const existing = await prisma.automationRule.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+    }
+
+    // Phase 4: Check if there's a pending approval request
+    const pending = await isPendingApproval(prisma, 'workflow_rule', params.id, 'delete');
+
+    if (pending) {
+      return NextResponse.json(
+        {
+          error: 'Pending approval required',
+          message: 'This workflow rule deletion has pending approval requests. Please wait for approval before deleting.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Phase 4: Check if approval is required for workflow rule deletion
+    const ipAddress = req.headers.get('x-forwarded-for') || 
+                      req.headers.get('x-real-ip') || 
+                      null;
+    const userAgent = req.headers.get('user-agent') || null;
+
+    const approvalCheck = await checkAndRequestApproval(prisma, {
+      resource: 'workflow_rule',
+      resourceId: params.id,
+      action: 'delete',
+      data: {
+        ruleName: existing.name,
+        module: existing.module,
+      },
+      userId: auth.userId || '',
+      ipAddress: logIpAddress,
+      userAgent: logUserAgent,
+    });
+
+    if (approvalCheck.requiresApproval) {
+      if (approvalCheck.error) {
+        return NextResponse.json(
+          {
+            error: approvalCheck.error,
+            approvalRequestId: approvalCheck.approvalRequestId,
+          },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message: 'Workflow rule deletion requires approval before it can be performed.',
+          approvalRequestId: approvalCheck.approvalRequestId,
+          requiresApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
     await prisma.automationRule.delete({
       where: { id: params.id },
+    });
+
+    // Phase 4: Log audit entry for workflow rule deletion
+    await logAudit(prisma, {
+      userId: auth.userId || null,
+      action: 'workflow_rule_deleted',
+      resource: 'workflow_rule',
+      resourceId: params.id,
+      details: {
+        ruleName: existing.name,
+        module: existing.module,
+      },
+      ipAddress: logIpAddress,
+      userAgent: logUserAgent,
     });
 
     return NextResponse.json({ success: true });

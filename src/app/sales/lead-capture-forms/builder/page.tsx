@@ -167,9 +167,24 @@ function FormBuilderContent() {
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to save form');
+        let errorMessage = 'Failed to save form';
+        try {
+          const error = await res.json();
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status-based messages
+          if (res.status === 401) {
+            errorMessage = 'Unauthorized. Please log in again.';
+          } else if (res.status === 403) {
+            errorMessage = 'Access denied. You do not have permission to create forms.';
+          } else if (res.status >= 500) {
+            errorMessage = 'Server error. Please try again later.';
+          }
+        }
+        throw new Error(errorMessage);
       }
+
+      const savedForm = await res.json();
 
       toast({
         title: 'Form saved',
@@ -177,7 +192,7 @@ function FormBuilderContent() {
       });
 
       if (!formId) {
-        const savedForm = await res.json();
+        // Navigate to edit page for newly created form
         router.push(`/sales/lead-capture-forms/builder?id=${savedForm.id}`);
       }
     } catch (error: any) {

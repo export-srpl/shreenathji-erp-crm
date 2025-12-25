@@ -73,6 +73,12 @@ export default function ViewProformaInvoicePage() {
 
       const result = await res.json();
       
+      // Validate that we have a documentId
+      if (!result.documentId) {
+        console.error('Conversion response missing documentId:', result);
+        throw new Error('Conversion succeeded but no document ID was returned');
+      }
+      
       toast({
         title: 'Conversion Successful',
         description: `${targetType} ${result.documentNumber} has been created. Review and save to finalize.`,

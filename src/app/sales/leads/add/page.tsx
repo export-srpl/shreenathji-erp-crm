@@ -834,7 +834,7 @@ function LeadForm() {
                 <Button type="button" variant="outline" onClick={() => router.back()}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving} data-testid="save-lead-button">
                   {isSaving ? 'Saving…' : leadId ? 'Update Lead' : 'Save Lead'}
                 </Button>
               </div>

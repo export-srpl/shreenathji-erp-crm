@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPrismaClient } from '@/lib/prisma';
 import { getAuthContext, isRoleAllowed } from '@/lib/auth';
 import { logActivity } from '@/lib/activity-logger';
+import { capturePriceHistory } from '@/lib/price-history';
 
 // GET /api/proforma-invoices - list proforma invoices with customer and items
 export async function GET() {
@@ -66,6 +67,23 @@ export async function POST(req: Request) {
       itemCount: proforma.items.length,
     },
     performedById: auth.userId || null,
+  });
+
+  // Capture price history
+  await capturePriceHistory({
+    prisma,
+    documentType: 'ProformaInvoice',
+    documentId: proforma.id,
+    documentNo: proforma.proformaNumber,
+    documentDate: proforma.issueDate,
+    customerId: proforma.customerId,
+    items: proforma.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountPct: item.discountPct,
+    })),
+    currency: proforma.customer.currency || 'INR',
   });
 
   return NextResponse.json(proforma, { status: 201 });

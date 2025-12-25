@@ -139,15 +139,60 @@ export async function POST(req: Request) {
     // Verify password
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      // Record failed login attempt (non-blocking)
+      // Record failed login attempt
       const lockoutResult = await recordFailedLoginAttempt(user.id);
+      const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
+      
+      // Log failed login (non-blocking)
       runInBackground(logAuditEvent(req, 'login_failed', 'auth', {
         userId: user.id,
         details: { 
-          failedAttempts: (user.failedLoginAttempts || 0) + 1,
+          failedAttempts: newFailedAttempts,
           locked: lockoutResult.locked,
+          ipAddress: clientIP,
         },
       }));
+
+      // Check for suspicious activity on failed login (non-blocking)
+      // This detects patterns like multiple failures from same IP
+      runInBackground(
+        checkSuspiciousActivity(user.id, clientIP)
+          .then((alerts) => {
+            // Filter for alerts related to multiple failed logins
+            const failedLoginAlerts = alerts.filter(
+              alert => alert.type === 'multiple_failed_logins'
+            );
+            // Also check for multiple failures from same IP across different users
+            return Promise.all([
+              ...failedLoginAlerts.map(alert => logSecurityAlert(alert)),
+              // Check for multiple failures from same IP (potential brute force)
+              (async () => {
+                const prisma = await getPrismaClient();
+                const recentFailures = await prisma.auditLog.count({
+                  where: {
+                    action: 'login_failed',
+                    ipAddress: clientIP,
+                    timestamp: { gte: new Date(Date.now() - 15 * 60 * 1000) }, // Last 15 minutes
+                  },
+                });
+                
+                if (recentFailures >= 5) {
+                  await logSecurityAlert({
+                    type: 'suspicious_activity',
+                    severity: 'high',
+                    message: `Multiple failed login attempts (${recentFailures}) from IP ${clientIP} in the last 15 minutes. Possible brute force attack.`,
+                    ipAddress: clientIP,
+                    timestamp: new Date(),
+                    details: { failureCount: recentFailures, timeWindow: '15 minutes' },
+                  });
+                }
+              })(),
+            ]);
+          })
+          .catch((error) => {
+            console.error('Security monitoring error (failed login):', error);
+          })
+      );
 
       if (lockoutResult.locked) {
         return NextResponse.json(
@@ -177,19 +222,62 @@ export async function POST(req: Request) {
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const sessionExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+    // Parse user agent for device, browser, and OS
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+    const { parseUserAgent } = await import('@/lib/user-agent-parser');
+    const { device, browser, os } = parseUserAgent(userAgent);
+
+    // Get location from IP (non-blocking - update in background if slow)
+    const { getLocationFromIP } = await import('@/lib/ip-geolocation');
+    const locationPromise = getLocationFromIP(clientIP);
+
     // Create session and reset attempts in parallel
-    const [session] = await Promise.all([
+    const [session, , location] = await Promise.all([
       prisma.session.create({
         data: {
           token: sessionToken,
           userId: user.id,
           expiresAt: sessionExpiry,
           ipAddress: clientIP,
-          userAgent: req.headers.get('user-agent') || 'unknown',
+          userAgent,
+          device,
+          browser,
+          os,
+          city: null, // Will be updated in background
+          country: null, // Will be updated in background
         },
       }),
       resetPromise,
+      locationPromise.catch(() => ({ city: null, country: null })), // Don't fail on geolocation error
     ]);
+
+    // Update session with location in background (non-blocking)
+    if (location.city || location.country) {
+      prisma.session.update({
+        where: { id: session.id },
+        data: {
+          city: location.city,
+          country: location.country,
+        },
+      }).catch(err => console.warn('Failed to update session location:', err));
+
+      // Phase 4: Check for new login location and create security alert
+      try {
+        const { alertNewLoginLocation } = await import('@/lib/security-alerts');
+        await alertNewLoginLocation(
+          prisma,
+          user.id,
+          clientIP,
+          location.country,
+          location.city,
+          device,
+          browser
+        );
+      } catch (alertError) {
+        // Non-blocking - don't fail login on alert creation failure
+        console.warn('Failed to create security alert for new login location:', alertError);
+      }
+    }
 
     // Clean up old sessions AFTER new session is created (non-blocking background task)
     // Keep max 3 most recent sessions per user to prevent database bloat
