@@ -302,12 +302,178 @@ export function LeadsTable() {
   }, []);
 
   const handleSelectAll = useCallback((checked: boolean | 'indeterminate') => {
-    if (checked && pagedLeads) {
+    if (checked === true && pagedLeads) {
+      // Select all visible leads
       setSelectedLeadIds(new Set(pagedLeads.map(lead => lead.id)));
     } else {
+      // Unselect all (checked === false or 'indeterminate')
       setSelectedLeadIds(new Set());
     }
   }, [pagedLeads]);
+
+  const handleSelectLead = useCallback((leadId: string) => {
+    setSelectedLeadIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(leadId)) {
+        newSet.delete(leadId);
+      } else {
+        newSet.add(leadId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleBulkStatusUpdate = useCallback(async (status: string) => {
+    const requiresReason = ['Won', 'Lost', 'Converted', 'Disqualified'].includes(status);
+    
+    if (requiresReason) {
+      // Open dialog to get win/loss reason
+      setPendingStatusUpdate({ leadIds: Array.from(selectedLeadIds), status });
+      setWinLossDialogOpen(true);
+    } else {
+      // Direct status update
+      try {
+        const res = await fetch('/api/leads/bulk-actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_stage',
+            leadIds: Array.from(selectedLeadIds),
+            status,
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.message || 'Failed to update leads');
+        }
+
+        const result = await res.json();
+        const successCount = result.summary?.successful || 0;
+        const failureCount = result.summary?.failed || 0;
+
+        if (successCount > 0) {
+          toast({
+            title: 'Leads Updated',
+            description: `Successfully updated ${successCount} lead(s)${failureCount > 0 ? `. ${failureCount} failed.` : ''}`,
+          });
+
+          // Refresh leads and clear selection
+          const refreshRes = await fetch('/api/leads');
+          if (refreshRes.ok) {
+            const refreshedLeads = await refreshRes.json();
+            setAllLeads(refreshedLeads);
+          }
+          setSelectedLeadIds(new Set());
+        } else {
+          throw new Error('No leads were updated');
+        }
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Update Failed',
+          description: error.message || 'Failed to update leads',
+        });
+      }
+    }
+  }, [selectedLeadIds, toast]);
+
+  const handleWinLossConfirm = useCallback(async (reasonId: string) => {
+    if (!pendingStatusUpdate) return;
+
+    try {
+      const res = await fetch('/api/leads/bulk-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_stage',
+          leadIds: pendingStatusUpdate.leadIds,
+          status: pendingStatusUpdate.status,
+          winLossReasonId: reasonId,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to update leads');
+      }
+
+      const result = await res.json();
+      const successCount = result.summary?.successful || 0;
+      const failureCount = result.summary?.failed || 0;
+
+      toast({
+        title: 'Leads Updated',
+        description: `Successfully updated ${successCount} lead(s)${failureCount > 0 ? `. ${failureCount} failed.` : ''}`,
+      });
+
+      // Refresh leads and clear selection
+      const refreshRes = await fetch('/api/leads');
+      if (refreshRes.ok) {
+        const refreshedLeads = await refreshRes.json();
+        setAllLeads(refreshedLeads);
+      }
+      setSelectedLeadIds(new Set());
+      setWinLossDialogOpen(false);
+      setPendingStatusUpdate(null);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message || 'Failed to update leads',
+      });
+    }
+  }, [pendingStatusUpdate, toast]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedLeadIds.size === 0) return;
+
+    // Confirm deletion
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedLeadIds.size} lead(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/api/leads/bulk-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          leadIds: Array.from(selectedLeadIds),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to delete leads');
+      }
+
+      const result = await res.json();
+      const successCount = result.summary?.successful || 0;
+      const failureCount = result.summary?.failed || 0;
+
+      toast({
+        title: 'Leads Deleted',
+        description: `Successfully deleted ${successCount} lead(s)${failureCount > 0 ? `. ${failureCount} failed.` : ''}`,
+      });
+
+      // Refresh leads and clear selection
+      const refreshRes = await fetch('/api/leads');
+      if (refreshRes.ok) {
+        const refreshedLeads = await refreshRes.json();
+        setAllLeads(refreshedLeads);
+      }
+      setSelectedLeadIds(new Set());
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+        description: error.message || 'Failed to delete leads',
+      });
+    }
+  }, [selectedLeadIds, toast]);
 
   const allSelected = pagedLeads.length > 0 && selectedLeadIds.size === pagedLeads.length;
   const someSelected = selectedLeadIds.size > 0 && selectedLeadIds.size < pagedLeads.length;
@@ -384,6 +550,13 @@ export function LeadsTable() {
                     <DropdownMenuItem onClick={() => handleBulkStatusUpdate('Disqualified')}>
                       Mark as Disqualified
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={handleBulkDelete}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      Delete Selected
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button
@@ -443,8 +616,8 @@ export function LeadsTable() {
                   <TableRow>
                     <TableHead className="w-[50px]">
                       <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={handleSelectAll}
+                        checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                        onCheckedChange={(checked) => handleSelectAll(checked === true)}
                         aria-label="Select all"
                       />
                     </TableHead>

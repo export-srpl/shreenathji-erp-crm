@@ -250,6 +250,53 @@ export async function POST(req: Request) {
         break;
       }
 
+      case 'delete': {
+        // Only admin can delete leads
+        if (!isRoleAllowed(auth.role, ['admin'])) {
+          return NextResponse.json({ error: 'Only admins can delete leads' }, { status: 403 });
+        }
+
+        for (const leadId of leadIds) {
+          try {
+            const existing = await prisma.lead.findUnique({
+              where: { id: leadId },
+              select: { id: true, srplId: true, companyName: true },
+            });
+
+            if (!existing) {
+              results.push({ id: leadId, success: false, error: 'Lead not found' });
+              continue;
+            }
+
+            // Log activity before deletion
+            await logActivity({
+              prisma,
+              module: 'LEAD',
+              entityType: 'lead',
+              entityId: leadId,
+              srplId: existing.srplId || undefined,
+              action: 'delete',
+              description: `Bulk delete: Lead "${existing.companyName}" (${existing.srplId || leadId}) deleted`,
+              performedById: auth.userId,
+            });
+
+            // Delete the lead
+            await prisma.lead.delete({
+              where: { id: leadId },
+            });
+
+            results.push({ id: leadId, success: true });
+          } catch (error: any) {
+            results.push({
+              id: leadId,
+              success: false,
+              error: error.message || 'Delete failed',
+            });
+          }
+        }
+        break;
+      }
+
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
